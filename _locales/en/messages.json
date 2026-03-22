@@ -3,7 +3,7 @@
     "message": "Context Translator"
   },
   "extensionDescription": {
-    "message": "A Chrome extension that translates the current page with Gemini 3.1 Flash-Lite Preview in a concise flow."
+    "message": "A Chrome extension that translates the current page with Gemini 3.1 Flash-Lite Preview in a clean, concise flow."
   },
   "extensionActionTitle": {
     "message": "Context Translator"
@@ -57,7 +57,7 @@
     }
   },
   "alwaysTranslateLanguageLabelDetected": {
-    "message": "Always translate detected language"
+    "message": "Always translate the detected language"
   },
   "alwaysTranslateSiteLabel": {
     "message": "Always translate this site"
@@ -90,16 +90,16 @@
     "message": "No API key yet."
   },
   "apiStatusStoredKeyPrompt": {
-    "message": "A saved key is available. Use Check to verify the connection."
+    "message": "A saved key is available. Click Check to verify the connection."
   },
   "apiStatusChangedKeyPrompt": {
-    "message": "This key changed. Save it or check the connection."
+    "message": "This key has changed. Save it or click Check to verify the connection."
   },
   "apiStatusChecking": {
-    "message": "Checking connection..."
+    "message": "Checking the connection..."
   },
   "apiStatusConnected": {
-    "message": "Connected · $MODEL$$LATENCY$",
+    "message": "Connected - $MODEL$$LATENCY$",
     "placeholders": {
       "model": {
         "content": "$1",
@@ -107,12 +107,12 @@
       },
       "latency": {
         "content": "$2",
-        "example": " · 123ms"
+        "example": " (123 ms)"
       }
     }
   },
   "apiStatusLatency": {
-    "message": " · $MILLISECONDS$ms",
+    "message": " ($MILLISECONDS$ ms)",
     "placeholders": {
       "milliseconds": {
         "content": "$1",
@@ -121,7 +121,7 @@
     }
   },
   "apiStatusCheckedAt": {
-    "message": "checked $TIME$",
+    "message": "checked at $TIME$",
     "placeholders": {
       "time": {
         "content": "$1",
@@ -142,7 +142,7 @@
     }
   },
   "siteHintCurrentSiteWithLanguage": {
-    "message": "Current site: $HOST$ · Detected language: $LANGUAGE$",
+    "message": "Current site: $HOST$ - Detected language: $LANGUAGE$",
     "placeholders": {
       "host": {
         "content": "$1",
@@ -167,7 +167,7 @@
     "message": "When source is set to Auto, choose a specific source language before swapping."
   },
   "languageDetectionUnavailableError": {
-    "message": "The current page language is not detected yet, so this option can't be saved."
+    "message": "The current page language has not been detected yet, so this option can't be saved."
   },
   "apiKeySaved": {
     "message": "API key saved."
@@ -255,6 +255,12 @@
   },
   "translationCouldNotComplete": {
     "message": "Couldn't finish the translation."
+  },
+  "translationCanceled": {
+    "message": "Translation was canceled."
+  },
+  "translationRequestTimedOut": {
+    "message": "The translation request timed out."
   },
   "applyTranslationFailed": {
     "message": "Couldn't apply the translation to the page."

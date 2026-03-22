@@ -16,8 +16,10 @@ const MAX_SEGMENT_CHARACTERS = 1400;
 const MIN_SPLIT_SEGMENT_CHARACTERS = 220;
 const MIN_SPLIT_POINT_RATIO = 0.55;
 const TRANSLATION_RETRY_LIMIT = 2;
+const MISSING_TRANSLATION_RETRY_LIMIT = 1;
 const COLLECTION_RETRY_DELAYS_MS = [0, 400, 1000];
 const STATUS_CHECK_TIMEOUT_MS = 8000;
+const TRANSLATION_REQUEST_TIMEOUT_MS = 30000;
 const activeTranslations = new Map();
 const tabPageRevisionByTabId = new Map();
 const translationStatusByTabId = new Map();
@@ -33,11 +35,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     return;
   }
 
-  tabPageRevisionByTabId.set(tabId, getTabPageRevision(tabId) + 1);
-  clearTranslationStatus(tabId);
+  handlePageNavigation(tabId, t("pageChangedTranslationStopped"));
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  cancelActiveTranslation(tabId, t("translationCanceled"));
   activeTranslations.delete(tabId);
   tabPageRevisionByTabId.delete(tabId);
   clearTranslationStatus(tabId);
@@ -66,6 +68,8 @@ async function handleMessage(message, sender) {
       return getTranslationStatus(message.tabId);
     case "PAGE_READY":
       return maybeAutoTranslate(sender, message);
+    case "PAGE_NAVIGATION":
+      return handlePageNavigationMessage(sender, message);
     default:
       return { ok: false, error: t("unsupportedRequest") };
   }
@@ -134,6 +138,25 @@ async function maybeAutoTranslate(sender, message) {
     mode: "auto",
     pageUrl: tabUrl
   });
+}
+
+function handlePageNavigationMessage(sender, message) {
+  const tabId = sender.tab?.id;
+
+  if (!tabId) {
+    return { ok: true, skipped: true };
+  }
+
+  handlePageNavigation(
+    tabId,
+    t("pageChangedTranslationStopped"),
+    String(message?.url ?? ""),
+    {
+      force: Boolean(message?.force)
+    }
+  );
+
+  return { ok: true };
 }
 
 async function checkApiStatus(apiKey) {
@@ -224,11 +247,15 @@ async function runTranslation(tabId, settings, options = {}) {
     if (mode === "auto") {
       return { ok: true, skipped: true, reason: "already-running" };
     }
-
-    return { ok: false, error: t("alreadyTranslating") };
   }
 
+  cancelActiveTranslation(
+    tabId,
+    mode === "auto" ? t("pageChangedTranslationStopped") : t("translationCanceled")
+  );
+
   const runId = ++translationRunIdSequence;
+  const controller = new AbortController();
   updateTranslationStatus(tabId, {
     runId,
     pageUrl,
@@ -241,13 +268,12 @@ async function runTranslation(tabId, settings, options = {}) {
     error: "",
     updatedAt: Date.now()
   });
-
   const task = executeTranslation(tabId, settings, {
     runId,
     pageUrl,
     pageRevision,
     mode
-  }).finally(() => {
+  }, controller.signal).finally(() => {
     if (activeTranslations.get(tabId)?.runId === runId) {
       activeTranslations.delete(tabId);
     }
@@ -257,13 +283,28 @@ async function runTranslation(tabId, settings, options = {}) {
     runId,
     pageUrl,
     pageRevision,
+    controller,
     task
   });
+  sendTranslationProgress(tabId, {
+    runId,
+    pageUrl,
+    pageRevision,
+    stage: "queued",
+    batchCount: 0,
+    translatedCount: 0
+  });
 
-  return task;
+  void task;
+
+  return {
+    ok: true,
+    started: true,
+    runId
+  };
 }
 
-async function executeTranslation(tabId, settings, context) {
+async function executeTranslation(tabId, settings, context, abortSignal) {
   let startIndex = 0;
   let batchCount = 0;
   let translatedCount = 0;
@@ -272,6 +313,7 @@ async function executeTranslation(tabId, settings, context) {
 
   try {
     while (true) {
+      throwIfAborted(abortSignal);
       let collected;
 
       try {
@@ -279,8 +321,12 @@ async function executeTranslation(tabId, settings, context) {
           startIndex,
           snapshotId,
           expectedPageUrl: context.pageUrl
-        });
+        }, abortSignal);
       } catch (error) {
+        if (isControlledAbortError(error)) {
+          throw error;
+        }
+
         return failTranslation(tabId, context, {
           batchCount,
           translatedCount,
@@ -336,6 +382,7 @@ async function executeTranslation(tabId, settings, context) {
         updatedAt: Date.now()
       });
       sendTranslationProgress(tabId, {
+        runId: context.runId,
         pageUrl: context.pageUrl,
         pageRevision: context.pageRevision,
         stage: "translating",
@@ -347,15 +394,17 @@ async function executeTranslation(tabId, settings, context) {
       const translatedParts = [];
 
       for (const chunk of createChunks(preparedSegments)) {
-        const translatedChunk = await translateChunk(chunk, settings, pageLanguageHint);
+        throwIfAborted(abortSignal);
+        const translatedChunk = await translateChunk(chunk, settings, pageLanguageHint, abortSignal);
         translatedParts.push(...translatedChunk);
       }
 
+      throwIfAborted(abortSignal);
       const translatedSegments = mergeTranslatedSegments(collected.segments, translatedParts);
       const applyResult = await applyTranslationsToPage(tabId, translatedSegments, settings, {
         snapshotId,
         expectedPageUrl: context.pageUrl
-      });
+      }, abortSignal);
 
       if (!applyResult.ok) {
         return failTranslation(tabId, context, {
@@ -391,6 +440,7 @@ async function executeTranslation(tabId, settings, context) {
         updatedAt: Date.now()
       });
       sendTranslationProgress(tabId, {
+        runId: context.runId,
         pageUrl: context.pageUrl,
         pageRevision: context.pageRevision,
         stage: "continuing",
@@ -399,6 +449,16 @@ async function executeTranslation(tabId, settings, context) {
       });
     }
   } catch (error) {
+    if (isControlledAbortError(error)) {
+      clearTranslationStatus(tabId, context.runId);
+
+      return {
+        ok: false,
+        canceled: true,
+        error: error.message
+      };
+    }
+
     return failTranslation(tabId, context, {
       batchCount,
       translatedCount,
@@ -407,6 +467,7 @@ async function executeTranslation(tabId, settings, context) {
   }
 
   sendTranslationProgress(tabId, {
+    runId: context.runId,
     pageUrl: context.pageUrl,
     pageRevision: context.pageRevision,
     stage: "complete",
@@ -433,7 +494,7 @@ async function executeTranslation(tabId, settings, context) {
   };
 }
 
-async function collectPageTextWithRetry(tabId, options = {}) {
+async function collectPageTextWithRetry(tabId, options = {}, abortSignal) {
   const {
     startIndex = 0,
     snapshotId = "",
@@ -443,8 +504,10 @@ async function collectPageTextWithRetry(tabId, options = {}) {
   let lastError = null;
 
   for (const delayMs of COLLECTION_RETRY_DELAYS_MS) {
+    throwIfAborted(abortSignal);
+
     if (delayMs > 0) {
-      await wait(delayMs);
+      await wait(delayMs, abortSignal);
     }
 
     try {
@@ -454,6 +517,7 @@ async function collectPageTextWithRetry(tabId, options = {}) {
         snapshotId,
         expectedPageUrl
       });
+      throwIfAborted(abortSignal);
       lastCollected = collected;
 
       if (collected?.ok === false) {
@@ -475,13 +539,14 @@ async function collectPageTextWithRetry(tabId, options = {}) {
   throw lastError ?? new Error(t("couldNotReadPageText"));
 }
 
-async function applyTranslationsToPage(tabId, translations, settings, options = {}) {
+async function applyTranslationsToPage(tabId, translations, settings, options = {}, abortSignal) {
   const {
     snapshotId = "",
     expectedPageUrl = ""
   } = options;
 
   try {
+    throwIfAborted(abortSignal);
     const result = await chrome.tabs.sendMessage(tabId, {
       type: "APPLY_TRANSLATION",
       translations,
@@ -489,6 +554,7 @@ async function applyTranslationsToPage(tabId, translations, settings, options = 
       snapshotId,
       expectedPageUrl
     });
+    throwIfAborted(abortSignal);
 
     if (!result?.ok) {
       return {
@@ -502,6 +568,10 @@ async function applyTranslationsToPage(tabId, translations, settings, options = 
       retryRecommended: Boolean(result?.retryRecommended)
     };
   } catch (error) {
+    if (isControlledAbortError(error)) {
+      throw error;
+    }
+
     return {
       ok: false,
       error: t("applyTranslationFailed")
@@ -518,7 +588,10 @@ function prepareSegmentsForTranslation(segments) {
       sourceId: segment.id,
       partIndex: index,
       text,
-      type: segment.type ?? "paragraph"
+      type: segment.type ?? "paragraph",
+      contextText: segment.contextText ?? "",
+      contextIndex: segment.contextIndex,
+      contextCount: segment.contextCount
     }));
   });
 }
@@ -711,13 +784,21 @@ function createChunks(segments) {
   return chunks;
 }
 
-async function translateChunk(chunk, settings, pageLanguage) {
+async function translateChunk(chunk, settings, pageLanguage, abortSignal) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= TRANSLATION_RETRY_LIMIT; attempt += 1) {
     try {
-      return await translateChunkOnce(chunk, settings, pageLanguage, attempt);
+      throwIfAborted(abortSignal);
+      return await translateChunkOnce(chunk, settings, pageLanguage, {
+        attempt,
+        abortSignal
+      });
     } catch (error) {
+      if (isControlledAbortError(error)) {
+        throw error;
+      }
+
       lastError = error;
     }
   }
@@ -725,8 +806,16 @@ async function translateChunk(chunk, settings, pageLanguage) {
   throw lastError ?? new Error(t("translationCouldNotComplete"));
 }
 
-async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
-  const prompt = buildPrompt(chunk, settings, pageLanguage, attempt);
+async function translateChunkOnce(chunk, settings, pageLanguage, options = {}) {
+  const {
+    attempt = 1,
+    abortSignal,
+    missingOnly = false
+  } = options;
+  const prompt = buildPrompt(chunk, settings, pageLanguage, {
+    attempt,
+    missingOnly
+  });
   const requestBody = {
     systemInstruction: {
       parts: [
@@ -774,15 +863,18 @@ async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
     }
   };
 
-  const response = await fetch(API_URL, {
+  const response = await fetchWithTimeout(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-goog-api-key": settings.apiKey
     },
     body: JSON.stringify(requestBody)
+  }, {
+    signal: abortSignal,
+    timeoutMs: TRANSLATION_REQUEST_TIMEOUT_MS,
+    timeoutMessage: t("translationRequestTimedOut")
   });
-
   const payload = await readJsonResponse(response);
 
   if (!response.ok) {
@@ -803,25 +895,60 @@ async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
     throw new Error(t("translateResponseParseFailed"));
   }
 
-  return mapValidatedTranslations(chunk, parsed);
+  const validation = validateChunkTranslations(chunk, parsed);
+
+  if (validation.missingSegments.length === 0) {
+    return validation.translatedItems;
+  }
+
+  if (missingOnly) {
+    throw new Error(t("responseMissingTranslations"));
+  }
+
+  return repairMissingTranslations(
+    chunk,
+    validation,
+    settings,
+    pageLanguage,
+    abortSignal
+  );
 }
 
-function buildPrompt(chunk, settings, pageLanguage, attempt) {
+function buildPrompt(chunk, settings, pageLanguage, options = {}) {
+  const {
+    attempt = 1,
+    missingOnly = false
+  } = options;
   const sourceLanguage = getSourceLanguageInstruction(settings.sourceLanguage, pageLanguage);
   const targetLanguage = getTranslationLanguageName(settings.targetLanguage);
-  const inputPayload = chunk.map((segment) => ({
-    id: segment.id,
-    type: segment.type ?? "paragraph",
-    text: segment.text
-  }));
+  const inputPayload = chunk.map((segment) => {
+    const payload = {
+      id: segment.id,
+      type: segment.type ?? "paragraph",
+      text: segment.text
+    };
+
+    if (segment.contextText && segment.contextText !== segment.text) {
+      payload.contextText = segment.contextText;
+    }
+
+    if (typeof segment.contextIndex === "number" && typeof segment.contextCount === "number") {
+      payload.contextPosition = `${segment.contextIndex + 1}/${segment.contextCount}`;
+    }
+
+    return payload;
+  });
 
   const lines = [
-    `Translate each item from ${sourceLanguage} to ${targetLanguage}.`,
+    missingOnly
+      ? `Return the missing translations from ${sourceLanguage} to ${targetLanguage}.`
+      : `Translate each item from ${sourceLanguage} to ${targetLanguage}.`,
     "Rules:",
     `- The translations array must contain exactly ${chunk.length} items.`,
     "- Return one translatedText value for every id.",
     "- Keep each id exactly the same.",
     "- Use the type field only as a webpage context hint.",
+    "- If contextText is present, use it only as nearby inline context for translating text.",
     "- Keep button-like, label, and menu text short.",
     "- Keep headings concise and readable.",
     "- Do not add explanations or notes.",
@@ -831,7 +958,9 @@ function buildPrompt(chunk, settings, pageLanguage, attempt) {
     "- Return JSON only."
   ];
 
-  if (attempt > 1) {
+  if (missingOnly) {
+    lines.push("- These ids were missing before. Double-check every id in this request.");
+  } else if (attempt > 1) {
     lines.push("- The previous response missed or malformed some ids. Double-check every id before answering.");
   }
 
@@ -841,7 +970,7 @@ function buildPrompt(chunk, settings, pageLanguage, attempt) {
   return lines.join("\n");
 }
 
-function mapValidatedTranslations(chunk, parsed) {
+function validateChunkTranslations(chunk, parsed) {
   const translatedById = new Map();
 
   if (Array.isArray(parsed?.translations)) {
@@ -854,12 +983,12 @@ function mapValidatedTranslations(chunk, parsed) {
     }
   }
 
-  const missingIds = [];
+  const missingSegments = [];
   const translatedItems = chunk.map((segment) => {
     const translatedText = translatedById.get(segment.id);
 
     if (!isUsableTranslationText(translatedText)) {
-      missingIds.push(segment.id);
+      missingSegments.push(segment);
     }
 
     return {
@@ -868,11 +997,10 @@ function mapValidatedTranslations(chunk, parsed) {
     };
   });
 
-  if (missingIds.length > 0) {
-    throw new Error(t("responseMissingTranslations"));
-  }
-
-  return translatedItems;
+  return {
+    translatedItems,
+    missingSegments
+  };
 }
 
 function isUsableTranslationText(value) {
@@ -885,6 +1013,56 @@ function normalizeChunkTranslationText(value, fallbackText) {
   }
 
   return value.replace(/\r\n/g, "\n");
+}
+
+async function repairMissingTranslations(
+  chunk,
+  validation,
+  settings,
+  pageLanguage,
+  abortSignal
+) {
+  const translatedById = new Map(
+    validation.translatedItems
+      .filter((item) => isUsableTranslationText(item.translatedText))
+      .map((item) => [item.id, item.translatedText])
+  );
+  let unresolvedSegments = validation.missingSegments.slice();
+
+  for (
+    let repairAttempt = 1;
+    repairAttempt <= MISSING_TRANSLATION_RETRY_LIMIT && unresolvedSegments.length > 0;
+    repairAttempt += 1
+  ) {
+    throwIfAborted(abortSignal);
+    const response = await translateChunkOnce(unresolvedSegments, settings, pageLanguage, {
+      attempt: TRANSLATION_RETRY_LIMIT + repairAttempt,
+      abortSignal,
+      missingOnly: true
+    });
+
+    for (const item of response) {
+      if (isUsableTranslationText(item.translatedText)) {
+        translatedById.set(item.id, item.translatedText);
+      }
+    }
+
+    unresolvedSegments = unresolvedSegments.filter(
+      (segment) => !isUsableTranslationText(translatedById.get(segment.id))
+    );
+  }
+
+  if (unresolvedSegments.length > 0) {
+    throw new Error(t("responseMissingTranslations"));
+  }
+
+  return chunk.map((segment) => ({
+    ...segment,
+    translatedText: normalizeChunkTranslationText(
+      translatedById.get(segment.id),
+      segment.text
+    )
+  }));
 }
 
 function mergeTranslatedSegments(originalSegments, translatedParts) {
@@ -1054,6 +1232,13 @@ async function readJsonResponse(response) {
 }
 
 function sendTranslationProgress(tabId, payload) {
+  if (
+    typeof payload.runId === "number" &&
+    !isCurrentTranslationRun(tabId, payload.runId)
+  ) {
+    return;
+  }
+
   if ((payload.pageRevision ?? 0) < getTabPageRevision(tabId)) {
     return;
   }
@@ -1067,9 +1252,38 @@ function sendTranslationProgress(tabId, payload) {
   });
 }
 
-function wait(delayMs) {
-  return new Promise((resolve) => {
-    globalThis.setTimeout(resolve, delayMs);
+function wait(delayMs, signal) {
+  if (!delayMs) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      cleanup();
+      resolve();
+    }, delayMs);
+
+    const abortHandler = () => {
+      cleanup();
+      reject(getAbortError(signal));
+    };
+
+    function cleanup() {
+      globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", abortHandler);
+    }
+
+    if (!signal) {
+      return;
+    }
+
+    if (signal.aborted) {
+      cleanup();
+      reject(getAbortError(signal));
+      return;
+    }
+
+    signal.addEventListener("abort", abortHandler, { once: true });
   });
 }
 
@@ -1148,6 +1362,7 @@ function failTranslation(tabId, context, details) {
     updatedAt: Date.now()
   });
   sendTranslationProgress(tabId, {
+    runId: context.runId,
     pageUrl: context.pageUrl,
     pageRevision: context.pageRevision,
     stage: "error",
@@ -1164,4 +1379,144 @@ function failTranslation(tabId, context, details) {
 
 function getTabPageRevision(tabId) {
   return tabPageRevisionByTabId.get(tabId) ?? 0;
+}
+
+function handlePageNavigation(tabId, reason, nextUrl = "", options = {}) {
+  const {
+    force = false
+  } = options;
+  const activeTranslation = activeTranslations.get(tabId);
+  const nextPageRevision = getTabPageRevision(tabId) + 1;
+
+  if (
+    !force &&
+    activeTranslation &&
+    nextUrl &&
+    activeTranslation.pageUrl &&
+    activeTranslation.pageUrl === nextUrl
+  ) {
+    return;
+  }
+
+  if (activeTranslation) {
+    cancelActiveTranslation(tabId, reason);
+  }
+
+  tabPageRevisionByTabId.set(tabId, nextPageRevision);
+
+  if (activeTranslation) {
+    sendTranslationProgress(tabId, {
+      runId: activeTranslation.runId,
+      pageUrl: activeTranslation.pageUrl,
+      pageRevision: nextPageRevision,
+      stage: "error",
+      batchCount: 0,
+      translatedCount: 0,
+      error: reason
+    });
+  }
+
+  clearTranslationStatus(tabId);
+}
+
+function cancelActiveTranslation(tabId, reason = t("translationCanceled")) {
+  const activeTranslation = activeTranslations.get(tabId);
+
+  if (!activeTranslation?.controller || activeTranslation.controller.signal.aborted) {
+    return false;
+  }
+
+  activeTranslation.controller.abort(createTranslationAbortError(reason));
+  return true;
+}
+
+function isCurrentTranslationRun(tabId, runId) {
+  if (typeof runId !== "number") {
+    return true;
+  }
+
+  return activeTranslations.get(tabId)?.runId === runId;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw getAbortError(signal);
+  }
+}
+
+function getAbortError(signal) {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+
+  if (typeof signal?.reason === "string" && signal.reason) {
+    return createTranslationAbortError(signal.reason);
+  }
+
+  return createTranslationAbortError();
+}
+
+function createTranslationAbortError(message = t("translationCanceled")) {
+  const error = new Error(message);
+  error.name = "TranslationAbortError";
+  return error;
+}
+
+function isControlledAbortError(error) {
+  return error?.name === "TranslationAbortError";
+}
+
+async function fetchWithTimeout(url, options, config = {}) {
+  const {
+    signal,
+    timeoutMs = 0,
+    timeoutMessage = t("translationRequestTimedOut")
+  } = config;
+  const controller = new AbortController();
+  const abortParentRequest = () => {
+    controller.abort(getAbortError(signal));
+  };
+
+  if (signal) {
+    if (signal.aborted) {
+      throw getAbortError(signal);
+    }
+
+    signal.addEventListener("abort", abortParentRequest, { once: true });
+  }
+
+  const timeoutId = timeoutMs > 0
+    ? globalThis.setTimeout(() => {
+      const timeoutError = new Error(timeoutMessage);
+      timeoutError.name = "TranslationTimeoutError";
+      controller.abort(timeoutError);
+    }, timeoutMs)
+    : 0;
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (signal?.aborted) {
+        throw getAbortError(signal);
+      }
+
+      if (controller.signal.reason instanceof Error) {
+        throw controller.signal.reason;
+      }
+    }
+
+    throw error;
+  } finally {
+    if (signal) {
+      signal.removeEventListener("abort", abortParentRequest);
+    }
+
+    if (timeoutId) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  }
 }

@@ -1,245 +1,108 @@
-**Language:** [English](./README.md) | [한국어](./README.ko.md)
+**Language:** English | [Korean](./README.ko.md)
 
-<div align="center">
+# Context Translator
 
-# 🌐 Context Translator
+Context Translator is a Chrome extension that translates the current page with `gemini-3.1-flash-lite-preview`.
 
-**A Chrome extension that quickly translates webpages with Gemini 3.1 Flash-Lite Preview**
+The project aims for a simple flow:
 
-Instead of packing in too many features, it focuses on a short, clear flow:
-**open popup → confirm settings → translate**.
+`open popup -> confirm settings -> translate`
 
-[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-0F9D58?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/develop/migrate)
-[![Gemini API](https://img.shields.io/badge/Gemini-Flash--Lite-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview?hl=en)
-[![Status](https://img.shields.io/badge/Status-Working_Prototype-FFD700?style=for-the-badge)](#)
-[![License](https://img.shields.io/badge/License-MIT-black?style=for-the-badge)](./LICENSE)
-
-</div>
-
----
-
-> [!NOTE]
-> This extension requires **your own Gemini API key**. You can create one in [Google AI Studio](https://aistudio.google.com/app/apikey).\
-> It works on `http://` / `https://` pages and does not run on internal browser pages such as `chrome://`.
-
----
-
-## ✨ Features
-
-| Feature                 | Description                                                          |
-| :---------------------- | :------------------------------------------------------------------- |
-| 🔄 **Page Translation** | Instantly translate the current tab into the selected language       |
-| 🔍 **Auto Source Detect** | Detect the source language automatically with `Auto`               |
-| ↔️ **Swap Direction**   | Swap source ↔ target languages in one click                          |
-| 🤖 **Auto Translate**   | Always translate selected languages or specific sites automatically  |
-| 👀 **Show Original**    | Check the original text by hovering translated content               |
-| 📊 **Progress Status**  | Show real-time progress while translation is running                 |
-| 🌐 **Korean/English UI** | The popup follows Chrome's UI language and switches between Korean and English |
-| 🔑 **API Key Management** | Save, clear, and check the API connection from the popup          |
-
----
-
-## 🚀 Quick Start
-
-You can load it directly into Chrome without a build step.
+## Quick Start
 
 ```text
 1. Open chrome://extensions
-2. Turn on "Developer mode" in the top-right corner
+2. Turn on "Developer mode"
 3. Click "Load unpacked"
 4. Select this project folder
 5. Enter your Gemini API key in the popup and click "Save"
-6. Use "Check" to verify the API connection
-7. Open a page to translate, choose languages, and click "Translate"
+6. Click "Check" to verify the API connection
+7. Open a page, choose the languages, and click "Translate"
 ```
 
-> [!TIP]
-> After changing code, use **Reload** on `chrome://extensions` to apply updates immediately.
+The extension works on `http://` and `https://` pages only.
 
----
+## Features
 
-## 🌍 Supported Languages
+- Translate the current tab into the selected language
+- Detect the source language automatically with `Auto`
+- Swap source and target languages in one click
+- Auto-translate selected languages or specific sites
+- Show the original text on hover
+- Display real-time translation progress
+- Follow Chrome UI language for English/Korean popup text
+- Save, clear, and verify the Gemini API key in the popup
 
-<table>
-<tr>
-<td>
-
-| Language                | Source | Target |
-| :---------------------- | :----: | :----: |
-| 🇰🇷 Korean               |   ✅   |   ✅   |
-| 🇺🇸 English              |   ✅   |   ✅   |
-| 🇯🇵 Japanese             |   ✅   |   ✅   |
-| 🇨🇳 Chinese (Simplified) |   ✅   |   ✅   |
-| 🇹🇼 Chinese (Traditional) |  ✅   |   ✅   |
-
-</td>
-<td>
-
-| Language        | Source | Target |
-| :-------------- | :----: | :----: |
-| 🇪🇸 Spanish      |   ✅   |   ✅   |
-| 🇫🇷 French       |   ✅   |   ✅   |
-| 🇩🇪 German       |   ✅   |   ✅   |
-| 🇻🇳 Vietnamese   |   ✅   |   ✅   |
-| 🔍 Auto Detect   |   ✅   |   —    |
-
-</td>
-</tr>
-</table>
-
----
-
-## ⚙️ How It Works
+## How It Works
 
 ```mermaid
 flowchart LR
-    A["👤 User"] -->|Translation request| B["🔲 Popup"]
-    B -->|Message| C["⚡ Background\nService Worker"]
-    C -->|Request text collection| D["📄 Content Script"]
-    D -->|Extract visible text| C
-    C -->|Segment and chunk| E["🤖 Gemini API"]
-    E -->|Translation result| C
-    C -->|Apply translation| D
+    A["User"] -->|Translation request| B["Popup"]
+    B -->|Message| C["Background Service Worker"]
+    C -->|Collect text| D["Content Script"]
+    D -->|Visible text segments| C
+    C -->|Chunked requests| E["Gemini API"]
+    E -->|Translated JSON| C
+    C -->|Apply translations| D
     D -->|Update page| A
-
-    style A fill:#4285F4,color:#fff,stroke:none
-    style B fill:#0F9D58,color:#fff,stroke:none
-    style C fill:#F4B400,color:#000,stroke:none
-    style D fill:#DB4437,color:#fff,stroke:none
-    style E fill:#8E75B2,color:#fff,stroke:none
 ```
 
-<details>
-<summary><b>📝 Step-by-step details</b></summary>
+### Runtime Flow
 
-1. **Popup** reads the current tab and saved settings to initialize the UI.
-2. **Popup → Background** sends a request when the user starts translation.
-3. **Background → Content Script** asks for translatable text from the current page.
-4. **Content Script** extracts only visible text and filters strings that should stay untouched, such as URLs or code.
-5. **Background → Gemini API** sends segmented chunks to Gemini for translation.
-6. **Content Script** receives the translated result and applies it to the page.
+1. The popup loads the current tab and saved settings.
+2. The background worker starts a translation run and tracks progress.
+3. The content script collects visible text from the page.
+4. The background worker splits the text into chunks and calls Gemini.
+5. The content script applies the translated text back to the page.
 
-</details>
+## Auto-Translate Safety
 
----
+Auto-translate is intentionally blocked on pages that may contain sensitive content, including:
 
-## 🛡️ Auto-Translate Rules
+- Mail services
+- Collaboration and messaging tools
+- Some Google Docs, Drive, and Calendar pages
+- Pages with password fields
 
-Auto-translate runs when **either one** of these is true:
-
-- ✅ The current page language is in the **always translate** language list
-- ✅ The current site is in the **always translate** site list
-
-> [!WARNING]
-> Auto-translate is **intentionally disabled** on potentially sensitive pages.
->
-> - Some mail services
-> - Some messengers and collaboration tools
-> - Parts of Google Docs, Drive, and Calendar
-> - Pages with password input fields
-
----
-
-## 🎯 Translation Quality Philosophy
-
-> **"Fast and reliably readable translation" over "extremely clever translation"**
-
-Instead of asking the model to infer too much, this project leans toward
-**making the input safer and cleaner first**.\
-This is a heuristic `best-effort` approach, so it does not guarantee perfect results on every page.
-
-| Strategy            | Description                                                                 |
-| :------------------ | :-------------------------------------------------------------------------- |
-| 🚫 Exclusion Rules  | Exclude URLs, email addresses, file paths, code, and identifier-like strings first |
-| ✂️ Smart Splitting  | Split text with paragraph, list, sentence, and line-break boundaries first  |
-| 🔗 Merge Short Parts | Re-merge pieces that are too short to reduce context loss                  |
-| 🏷️ Type Hints       | Pass light hints such as button, heading, label, list, link, or paragraph  |
-
----
-
-## 💾 Storage Structure
-
-Settings are stored in `chrome.storage.local`.
-
-```text
-├── API key
-├── Source language / target language
-├── "Show original on hover" setting
-├── Languages to auto-translate
-├── Sites to auto-translate
-└── Latest API status check result
-```
-
-> [!IMPORTANT]
-> This is currently a personal prototype, so the API key is stored **locally**.\
-> If you plan to distribute it publicly, reviewing a server proxy architecture would be safer.
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```text
 context-translator/
-├── manifest.json           # Extension manifest
-├── popup.html              # Popup markup
-├── README.md               # English README
-├── README.ko.md            # Korean README
-├── _locales/               # Chrome i18n messages
-│   ├── en/
-│   └── ko/
-├── docs/                   # Documentation
-└── src/
-    ├── background/
-    │   └── background.js   # Translation requests, state, API communication
-    ├── content/
-    │   ├── content.css     # Translated text styles
-    │   └── content.js      # Page text collection and translation application
-    ├── popup/
-    │   ├── popup.css       # Popup styles
-    │   └── popup.js        # Popup state, settings, button actions
-    └── shared/
-        └── i18n.js         # Shared locale and language helpers
+├─ manifest.json
+├─ popup.html
+├─ README.md
+├─ README.ko.md
+├─ _locales/
+│  ├─ en/messages.json
+│  └─ ko/messages.json
+├─ docs/
+└─ src/
+   ├─ background/background.js
+   ├─ content/content.css
+   ├─ content/content.js
+   ├─ popup/popup.css
+   ├─ popup/popup.js
+   └─ shared/i18n.js
 ```
 
----
+## Validation
 
-## ⚠️ Limitations
+Use these commands after changing logic, popup markup, or locale/document files:
 
-| Item              | Description                                                         |
-| :---------------- | :------------------------------------------------------------------ |
-| Protocol Limit    | Works only on `http://` / `https://` pages                          |
-| Internal Pages    | `chrome://` and other internal pages are not supported              |
-| Dynamic Sites     | Some content may fail on pages whose structure changes constantly   |
-| API Key Security  | Stored locally on the user's device, not a public-release security design |
-| Retry Refinement  | Optional retry-based quality refinement is not implemented          |
+```text
+node --check src/background/background.js
+node --check src/content/content.js
+node --check src/popup/popup.js
+node scripts/validate-locales.mjs
+```
 
----
+## Limitations
 
-## 🛠️ Tech Stack
+- The extension only runs on `http://` and `https://` pages.
+- Dynamic pages may change while a translation is running.
+- The Gemini API key is stored locally in `chrome.storage.local`.
+- Translation quality is best-effort and depends on page structure.
 
-| Category       | Technology                                  |
-| :------------- | :------------------------------------------ |
-| Platform       | Chrome Extension Manifest V3                |
-| UI             | Popup HTML/CSS/JS                           |
-| Page Bridge    | Content Script                              |
-| Background     | Background Service Worker                   |
-| Storage        | `chrome.storage.local`                      |
-| Translation    | Gemini API (`gemini-3.1-flash-lite-preview`) |
-
----
-
-## 📚 References
-
-| Resource                       | Link                                                                                       |
-| :----------------------------- | :----------------------------------------------------------------------------------------- |
-| Gemini 3.1 Flash-Lite Preview  | [Official docs](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview?hl=en) |
-| Chrome Extensions Manifest V3  | [Migration guide](https://developer.chrome.com/docs/extensions/develop/migrate)          |
-
----
-
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](./LICENSE).
-
----

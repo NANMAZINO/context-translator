@@ -4,11 +4,70 @@ const TRANSLATED_MARKER_VALUE = "translated";
 const MAX_SEGMENTS = 180;
 const MAX_TOTAL_CHARACTERS = 18000;
 const AUTO_TRANSLATE_READY_DELAY_MS = 800;
+const INLINE_CONTEXT_WINDOW_CHARACTERS = 260;
+const EXCLUDED_TAG_NAMES = new Set([
+  "SCRIPT",
+  "STYLE",
+  "NOSCRIPT",
+  "TEXTAREA",
+  "INPUT",
+  "SELECT",
+  "OPTION",
+  "CODE",
+  "PRE",
+  "SVG",
+  "CANVAS"
+]);
+const CONTEXT_GROUP_BOUNDARY_SELECTOR = [
+  "a",
+  "article",
+  "aside",
+  "blockquote",
+  "button",
+  "dd",
+  "details",
+  "dialog",
+  "div",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "label",
+  "li",
+  "main",
+  "nav",
+  "ol",
+  "option",
+  "p",
+  "section",
+  "summary",
+  "td",
+  "th",
+  "ul",
+  "[role='button']",
+  "[role='heading']",
+  "[role='link']",
+  "[role='menuitem']",
+  "[role='option']",
+  "[role='tab']"
+].join(", ");
 
 const pageState = {
   autoTranslateTimer: null,
+  lastObservedUrl: window.location.href,
   snapshotSequence: 0,
-  translationSnapshot: null
+  translationSnapshot: null,
+  directTranslationEntries: new Set(),
+  directTranslationByNode: new WeakMap()
 };
 
 function t(messageName, substitutions, fallback = "") {
@@ -111,6 +170,7 @@ function applyTranslations(translations, showOriginalOnHover, options = {}) {
   const safeTranslations = Array.isArray(translations) ? translations : [];
   let appliedCount = 0;
   let skippedCount = 0;
+  cleanupDirectTranslationEntries();
 
   for (const item of safeTranslations) {
     const collected = snapshot.nodesById.get(item.id);
@@ -123,30 +183,15 @@ function applyTranslations(translations, showOriginalOnHover, options = {}) {
     const translatedText = normalizeTranslatedText(item.translatedText, collected.originalCore);
     const renderedText =
       collected.leadingWhitespace + translatedText + collected.trailingWhitespace;
-    const wrapper =
-      collected.targetType === "wrapper" && isOurTranslatedElement(collected.targetNode)
-        ? collected.targetNode
-        : document.createElement("span");
 
-    wrapper.className = TRANSLATED_CLASS_NAME;
-    wrapper.setAttribute(TRANSLATED_MARKER_ATTRIBUTE, TRANSLATED_MARKER_VALUE);
-    wrapper.dataset.originalFull = collected.originalFull;
-    wrapper.dataset.originalCore = collected.originalCore;
-    wrapper.textContent = renderedText;
-
-    if (showOriginalOnHover) {
-      wrapper.title = collected.originalCore;
-    } else {
-      wrapper.removeAttribute("title");
-    }
-
-    if (collected.targetType === "wrapper") {
+    if (shouldApplyDirectTextTranslation(collected, showOriginalOnHover)) {
+      applyDirectTextTranslation(collected, renderedText);
       appliedCount += 1;
       continue;
-    } else {
-      collected.targetNode.replaceWith(wrapper);
-      appliedCount += 1;
     }
+
+    applyWrappedTranslation(collected, renderedText, showOriginalOnHover);
+    appliedCount += 1;
   }
 
   return {
@@ -158,6 +203,14 @@ function applyTranslations(translations, showOriginalOnHover, options = {}) {
 }
 
 function updateHoverMode(enabled) {
+  cleanupDirectTranslationEntries();
+
+  if (enabled) {
+    for (const entry of Array.from(pageState.directTranslationEntries)) {
+      upgradeDirectTranslationEntryToWrapper(entry);
+    }
+  }
+
   const translatedNodes = document.querySelectorAll(
     `[${TRANSLATED_MARKER_ATTRIBUTE}="${TRANSLATED_MARKER_VALUE}"]`
   );
@@ -171,18 +224,143 @@ function updateHoverMode(enabled) {
   }
 }
 
-function restoreOriginalContent() {
-  const translatedNodes = document.querySelectorAll(
-    `[${TRANSLATED_MARKER_ATTRIBUTE}="${TRANSLATED_MARKER_VALUE}"]`
+function shouldApplyDirectTextTranslation(collected, showOriginalOnHover) {
+  return (
+    !showOriginalOnHover &&
+    collected.targetType === "text" &&
+    collected.targetNode instanceof Text
   );
+}
 
-  for (const node of translatedNodes) {
-    const originalText = node.dataset.originalFull ?? node.textContent ?? "";
-    node.replaceWith(document.createTextNode(originalText));
+function applyDirectTextTranslation(collected, renderedText) {
+  const targetNode = collected.targetNode;
+
+  if (!(targetNode instanceof Text)) {
+    return;
+  }
+
+  forgetDirectTranslation(targetNode);
+  targetNode.nodeValue = renderedText;
+  trackDirectTranslation({
+    node: targetNode,
+    originalFull: collected.originalFull,
+    originalCore: collected.originalCore
+  });
+}
+
+function applyWrappedTranslation(collected, renderedText, showOriginalOnHover) {
+  const wrapper =
+    collected.targetType === "wrapper" && isOurTranslatedElement(collected.targetNode)
+      ? collected.targetNode
+      : createTranslatedWrapper(
+        collected.originalFull,
+        collected.originalCore,
+        renderedText,
+        showOriginalOnHover
+      );
+
+  if (wrapper !== collected.targetNode) {
+    wrapper.className = TRANSLATED_CLASS_NAME;
+    wrapper.setAttribute(TRANSLATED_MARKER_ATTRIBUTE, TRANSLATED_MARKER_VALUE);
+  }
+
+  wrapper.dataset.originalFull = collected.originalFull;
+  wrapper.dataset.originalCore = collected.originalCore;
+  wrapper.textContent = renderedText;
+
+  if (showOriginalOnHover) {
+    wrapper.title = collected.originalCore;
+  } else {
+    wrapper.removeAttribute("title");
+  }
+
+  if (collected.targetType === "wrapper") {
+    return;
+  }
+
+  if (collected.targetNode instanceof Text) {
+    forgetDirectTranslation(collected.targetNode);
+  }
+
+  collected.targetNode.replaceWith(wrapper);
+}
+
+function createTranslatedWrapper(originalFull, originalCore, renderedText, showOriginalOnHover) {
+  const wrapper = document.createElement("span");
+  wrapper.className = TRANSLATED_CLASS_NAME;
+  wrapper.setAttribute(TRANSLATED_MARKER_ATTRIBUTE, TRANSLATED_MARKER_VALUE);
+  wrapper.dataset.originalFull = originalFull;
+  wrapper.dataset.originalCore = originalCore;
+  wrapper.textContent = renderedText;
+
+  if (showOriginalOnHover) {
+    wrapper.title = originalCore;
+  }
+
+  return wrapper;
+}
+
+function trackDirectTranslation(entry) {
+  const existingEntry = pageState.directTranslationByNode.get(entry.node);
+
+  if (existingEntry) {
+    pageState.directTranslationEntries.delete(existingEntry);
+  }
+
+  pageState.directTranslationByNode.set(entry.node, entry);
+  pageState.directTranslationEntries.add(entry);
+}
+
+function forgetDirectTranslation(textNode) {
+  if (!(textNode instanceof Text)) {
+    return;
+  }
+
+  const existingEntry = pageState.directTranslationByNode.get(textNode);
+
+  if (!existingEntry) {
+    return;
+  }
+
+  pageState.directTranslationEntries.delete(existingEntry);
+  pageState.directTranslationByNode.delete(textNode);
+}
+
+function cleanupDirectTranslationEntries() {
+  for (const entry of Array.from(pageState.directTranslationEntries)) {
+    if (!entry.node?.isConnected) {
+      pageState.directTranslationEntries.delete(entry);
+
+      if (entry.node instanceof Text) {
+        pageState.directTranslationByNode.delete(entry.node);
+      }
+    }
   }
 }
 
-function shouldSkipTextNode(textNode) {
+function upgradeDirectTranslationEntryToWrapper(entry) {
+  if (!(entry?.node instanceof Text) || !entry.node.isConnected) {
+    pageState.directTranslationEntries.delete(entry);
+
+    if (entry?.node instanceof Text) {
+      pageState.directTranslationByNode.delete(entry.node);
+    }
+
+    return;
+  }
+
+  const wrapper = createTranslatedWrapper(
+    entry.originalFull,
+    entry.originalCore,
+    entry.node.nodeValue ?? entry.originalFull,
+    true
+  );
+
+  entry.node.replaceWith(wrapper);
+  forgetDirectTranslation(entry.node);
+}
+
+function shouldSkipTextNode(textNode, traversalState) {
   if (!(textNode instanceof Text)) {
     return true;
   }
@@ -197,11 +375,7 @@ function shouldSkipTextNode(textNode) {
     return true;
   }
 
-  if (!isVisible(parent)) {
-    return true;
-  }
-
-  const value = textNode.nodeValue ?? "";
+  const value = getSourceTextForTextNode(textNode);
   const normalizedValue = value.trim();
 
   if (!normalizedValue) {
@@ -212,25 +386,15 @@ function shouldSkipTextNode(textNode) {
     return true;
   }
 
-  return shouldPreserveSourceText(normalizedValue, parent);
+  if (shouldPreserveSourceText(normalizedValue, parent)) {
+    return true;
+  }
+
+  return !isVisible(parent, traversalState?.visibilityByElement);
 }
 
 function isExcludedElement(element) {
-  const excludedTags = new Set([
-    "SCRIPT",
-    "STYLE",
-    "NOSCRIPT",
-    "TEXTAREA",
-    "INPUT",
-    "SELECT",
-    "OPTION",
-    "CODE",
-    "PRE",
-    "SVG",
-    "CANVAS"
-  ]);
-
-  if (excludedTags.has(element.tagName)) {
+  if (EXCLUDED_TAG_NAMES.has(element.tagName)) {
     return true;
   }
 
@@ -245,22 +409,25 @@ function isExcludedElement(element) {
   );
 }
 
-function isVisible(element) {
+function isVisible(element, visibilityByElement) {
+  if (visibilityByElement?.has(element)) {
+    return visibilityByElement.get(element);
+  }
+
   if (element.closest("[aria-hidden='true']")) {
+    visibilityByElement?.set(element, false);
     return false;
   }
 
   const style = window.getComputedStyle(element);
-
-  if (
+  const isVisibleElement = !(
     style.display === "none" ||
     style.visibility === "hidden" ||
     style.opacity === "0"
-  ) {
-    return false;
-  }
+  ) && element.getClientRects().length > 0;
 
-  return element.getClientRects().length > 0;
+  visibilityByElement?.set(element, isVisibleElement);
+  return isVisibleElement;
 }
 
 function containsTranslatableText(value) {
@@ -409,6 +576,93 @@ function getSegmentContextElement(targetNode, targetType) {
   return null;
 }
 
+function getContextGroupElement(targetNode, targetType) {
+  const contextElement = getSegmentContextElement(targetNode, targetType);
+
+  if (!contextElement) {
+    return null;
+  }
+
+  return contextElement.closest(CONTEXT_GROUP_BOUNDARY_SELECTOR) ?? contextElement;
+}
+
+function getSourceTextForTextNode(textNode) {
+  if (!(textNode instanceof Text)) {
+    return "";
+  }
+
+  return pageState.directTranslationByNode.get(textNode)?.originalFull ?? textNode.nodeValue ?? "";
+}
+
+function attachInlineContextToSegments(snapshot) {
+  const groupedSegments = new Map();
+
+  for (const segment of snapshot.segments) {
+    const contextGroupElement = snapshot.nodesById.get(segment.id)?.contextGroupElement ?? null;
+    const groupKey = contextGroupElement ?? snapshot;
+
+    if (!groupedSegments.has(groupKey)) {
+      groupedSegments.set(groupKey, []);
+    }
+
+    groupedSegments.get(groupKey).push(segment);
+  }
+
+  for (const groupSegments of groupedSegments.values()) {
+    let combinedText = "";
+    const positions = [];
+
+    for (const segment of groupSegments) {
+      if (combinedText) {
+        combinedText += " ";
+      }
+
+      const start = combinedText.length;
+      combinedText += segment.text;
+      positions.push({
+        segment,
+        start,
+        end: combinedText.length
+      });
+    }
+
+    for (let index = 0; index < positions.length; index += 1) {
+      const position = positions[index];
+      position.segment.contextText = buildInlineContextSnippet(
+        combinedText,
+        position.start,
+        position.end
+      );
+      position.segment.contextIndex = index;
+      position.segment.contextCount = positions.length;
+    }
+  }
+}
+
+function buildInlineContextSnippet(text, startIndex, endIndex) {
+  if (text.length <= INLINE_CONTEXT_WINDOW_CHARACTERS) {
+    return text;
+  }
+
+  const focusLength = endIndex - startIndex;
+  const remainingLength = Math.max(0, INLINE_CONTEXT_WINDOW_CHARACTERS - focusLength);
+  const halfWindow = Math.floor(remainingLength / 2);
+  let sliceStart = Math.max(0, startIndex - halfWindow);
+  let sliceEnd = Math.min(text.length, endIndex + (remainingLength - halfWindow));
+
+  if (sliceEnd - sliceStart > INLINE_CONTEXT_WINDOW_CHARACTERS) {
+    sliceEnd = sliceStart + INLINE_CONTEXT_WINDOW_CHARACTERS;
+  }
+
+  if (sliceEnd === text.length && sliceEnd - sliceStart < INLINE_CONTEXT_WINDOW_CHARACTERS) {
+    sliceStart = Math.max(0, sliceEnd - INLINE_CONTEXT_WINDOW_CHARACTERS);
+  }
+
+  const prefix = sliceStart > 0 ? "..." : "";
+  const suffix = sliceEnd < text.length ? "..." : "";
+  return `${prefix}${text.slice(sliceStart, sliceEnd).trim()}${suffix}`;
+}
+
 function splitText(value) {
   const leadingWhitespace = value.match(/^\s*/)?.[0] ?? "";
   const trailingWhitespace = value.match(/\s*$/)?.[0] ?? "";
@@ -473,9 +727,14 @@ function buildTranslationSnapshot() {
     nodesById: new Map(),
     segments: []
   };
+  const traversalState = {
+    visibilityByElement: new WeakMap()
+  };
 
+  cleanupDirectTranslationEntries();
   pageState.snapshotSequence += 1;
-  collectSnapshotSegmentsFromNode(document.body, snapshot);
+  collectSnapshotSegmentsFromNode(document.body, snapshot, traversalState);
+  attachInlineContextToSegments(snapshot);
 
   return snapshot;
 }
@@ -512,7 +771,7 @@ function getSnapshotBatch(snapshot, startIndex) {
   return batch;
 }
 
-function collectSnapshotSegmentsFromNode(node, snapshot) {
+function collectSnapshotSegmentsFromNode(node, snapshot, traversalState) {
   if (!node) {
     return;
   }
@@ -530,19 +789,19 @@ function collectSnapshotSegmentsFromNode(node, snapshot) {
       return;
     }
 
-    if (isExcludedElement(element) || !isVisible(element)) {
+    if (isExcludedElement(element) || !isVisible(element, traversalState?.visibilityByElement)) {
       return;
     }
 
     for (const childNode of element.childNodes) {
-      collectSnapshotSegmentsFromNode(childNode, snapshot);
+      collectSnapshotSegmentsFromNode(childNode, snapshot, traversalState);
     }
 
     return;
   }
 
-  if (node.nodeType === Node.TEXT_NODE && !shouldSkipTextNode(node)) {
-    appendSnapshotNode(node, "text", node.nodeValue ?? "", snapshot);
+  if (node.nodeType === Node.TEXT_NODE && !shouldSkipTextNode(node, traversalState)) {
+    appendSnapshotNode(node, "text", getSourceTextForTextNode(node), snapshot);
   }
 }
 
@@ -560,6 +819,7 @@ function appendSnapshotNode(targetNode, targetType, originalFull, snapshot) {
     targetNode,
     targetType,
     segmentType,
+    contextGroupElement: getContextGroupElement(targetNode, targetType),
     originalFull,
     originalCore: parts.core,
     leadingWhitespace: parts.leadingWhitespace,
@@ -615,21 +875,44 @@ function initializeAutoTranslateHooks() {
 
   history.pushState = function pushStateWrapper(...args) {
     const result = originalPushState.apply(this, args);
-    scheduleAutoTranslateCheck();
+    scheduleAutoTranslateCheck({ forceNavigation: true });
     return result;
   };
 
   history.replaceState = function replaceStateWrapper(...args) {
     const result = originalReplaceState.apply(this, args);
-    scheduleAutoTranslateCheck();
+    scheduleAutoTranslateCheck({ forceNavigation: true });
     return result;
   };
 
-  window.addEventListener("popstate", scheduleAutoTranslateCheck);
-  window.addEventListener("pageshow", scheduleAutoTranslateCheck);
+  window.addEventListener("popstate", () => {
+    scheduleAutoTranslateCheck({ forceNavigation: true });
+  });
+  window.addEventListener("pageshow", () => {
+    scheduleAutoTranslateCheck({ forceNavigation: true });
+  });
 }
 
-function scheduleAutoTranslateCheck() {
+function scheduleAutoTranslateCheck(options = {}) {
+  const {
+    forceNavigation = false
+  } = options;
+  const currentUrl = window.location.href;
+  const urlChanged = pageState.lastObservedUrl !== currentUrl;
+
+  if (urlChanged) {
+    pageState.lastObservedUrl = currentUrl;
+    pageState.translationSnapshot = null;
+
+    void chrome.runtime.sendMessage({
+      type: "PAGE_NAVIGATION",
+      url: currentUrl,
+      force: forceNavigation
+    }).catch(() => {
+      // Ignore navigation notification failures.
+    });
+  }
+
   window.clearTimeout(pageState.autoTranslateTimer);
   pageState.autoTranslateTimer = window.setTimeout(() => {
     void chrome.runtime.sendMessage({

@@ -18,7 +18,9 @@ const state = {
   isSupportedPage: false,
   pageLanguageHint: "",
   settings: { ...DEFAULT_SETTINGS },
-  apiStatus: createDefaultApiStatus()
+  apiStatus: createDefaultApiStatus(),
+  translationRunning: false,
+  tabContextRequestId: 0
 };
 
 const elements = {};
@@ -106,6 +108,22 @@ function bindRuntimeEvents() {
     updateTranslationProgressStatus(message);
     return false;
   });
+
+  chrome.tabs.onActivated.addListener(() => {
+    void refreshActiveTabContext();
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (!state.activeTab?.id || tabId !== state.activeTab.id) {
+      return;
+    }
+
+    if (!changeInfo.url && !changeInfo.status) {
+      return;
+    }
+
+    void refreshActiveTabContext();
+  });
 }
 
 function populateLanguageOptions() {
@@ -140,15 +158,6 @@ function bindEvents() {
 }
 
 async function loadState() {
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  state.activeTab = activeTab ?? null;
-  state.currentPageUrl = activeTab?.url ?? "";
-
-  const tabInfo = getTabInfo(activeTab?.url ?? "");
-  state.currentHost = tabInfo.host;
-  state.isSupportedPage = tabInfo.isSupportedPage;
-  state.pageLanguageHint = await detectPageLanguageHint();
-
   const storedValues = await chrome.storage.local.get({
     ...DEFAULT_SETTINGS,
     [API_STATUS_CACHE_STORAGE_KEY]: null
@@ -177,11 +186,19 @@ async function loadState() {
 
   restoreApiServerStatus(state.settings.apiKey, storedApiStatusCache);
   renderState();
-  await loadTranslationStatus();
+  await refreshActiveTabContext();
 }
 
-async function loadTranslationStatus() {
+async function loadTranslationStatus(options = {}) {
+  const {
+    clearWhenMissing = false
+  } = options;
+
   if (!state.activeTab?.id) {
+    if (clearWhenMissing) {
+      resetTranslationProgressState();
+    }
+
     return;
   }
 
@@ -192,11 +209,19 @@ async function loadTranslationStatus() {
     });
 
     if (!response?.ok || !response.status || !matchesCurrentPageUrl(response.status.pageUrl)) {
+      if (clearWhenMissing) {
+        resetTranslationProgressState();
+      }
+
       return;
     }
 
     updateTranslationProgressStatus(response.status);
   } catch (error) {
+    if (clearWhenMissing) {
+      resetTranslationProgressState();
+    }
+
     // Ignore restore failure.
   }
 }
@@ -207,13 +232,17 @@ function renderState() {
   elements.showOriginalOnHover.checked = state.settings.showOriginalOnHover;
   elements.apiKey.value = state.settings.apiKey;
 
+  renderPageContext();
+  renderApiServerStatus();
+  refreshTranslateButtonState();
+}
+
+function renderPageContext() {
   updateAlwaysTranslateLanguageLabel();
   syncLanguageAutoTranslateCheckbox();
   syncSiteAutoTranslateCheckbox();
   updateSwapButtonState();
   renderSiteHint();
-  renderApiServerStatus();
-  refreshTranslateButtonState();
 }
 
 function renderApiServerStatus() {
@@ -346,7 +375,10 @@ function refreshTranslateButtonState() {
   const hasApiKey = Boolean(elements.apiKey.value.trim());
 
   elements.translateButton.disabled =
-    !state.isSupportedPage || !hasApiKey || sourceLanguage === targetLanguage;
+    !state.isSupportedPage ||
+    !hasApiKey ||
+    sourceLanguage === targetLanguage ||
+    state.translationRunning;
 
   if (!state.isSupportedPage) {
     setStatus(t("unsupportedPage"), "error");
@@ -364,6 +396,26 @@ function refreshTranslateButtonState() {
   }
 
   clearStatus();
+}
+
+async function refreshActiveTabContext() {
+  const requestId = ++state.tabContextRequestId;
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (requestId !== state.tabContextRequestId) {
+    return;
+  }
+
+  applyActiveTabState(activeTab ?? null);
+  state.pageLanguageHint = await detectPageLanguageHintForTab(state.activeTab);
+
+  if (requestId !== state.tabContextRequestId) {
+    return;
+  }
+
+  renderPageContext();
+  resetTranslationProgressState();
+  await loadTranslationStatus({ clearWhenMissing: true });
 }
 
 async function handleSourceLanguageChange() {
@@ -557,32 +609,43 @@ function updateTranslationProgressStatus(message) {
   }
 
   if (stage === "queued") {
+    state.translationRunning = true;
     setStatus(t("translationQueued"), "normal");
+    refreshTranslateButtonState();
     return;
   }
 
   if (stage === "translating") {
+    state.translationRunning = true;
     setStatus(t("translationBatchInProgress", [String(message.batchCount)]), "normal");
+    refreshTranslateButtonState();
     return;
   }
 
   if (stage === "continuing") {
+    state.translationRunning = true;
     setStatus(t("translationContinuing", [String(message.batchCount)]), "normal");
+    refreshTranslateButtonState();
     return;
   }
 
   if (stage === "failed" || stage === "error") {
+    state.translationRunning = false;
     setStatus(getFailedTranslationMessage(message), "error");
+    refreshTranslateButtonState();
     return;
   }
 
   if (stage === "complete") {
+    state.translationRunning = false;
     if ((message.batchCount ?? 1) > 1) {
       setStatus(t("translationCompletedMultiBatch", [String(message.batchCount)]), "success");
+      refreshTranslateButtonState();
       return;
     }
 
     setStatus(t("translationCompleted"), "success");
+    refreshTranslateButtonState();
   }
 }
 
@@ -592,6 +655,20 @@ function matchesCurrentPageUrl(pageUrl) {
   }
 
   return pageUrl === state.currentPageUrl;
+}
+
+function applyActiveTabState(activeTab) {
+  state.activeTab = activeTab;
+  state.currentPageUrl = activeTab?.url ?? "";
+
+  const tabInfo = getTabInfo(state.currentPageUrl);
+  state.currentHost = tabInfo.host;
+  state.isSupportedPage = tabInfo.isSupportedPage;
+}
+
+function resetTranslationProgressState() {
+  state.translationRunning = false;
+  refreshTranslateButtonState();
 }
 
 function getFailedTranslationMessage(message) {
@@ -636,16 +713,14 @@ async function handleTranslate() {
     }
 
     updateTranslationProgressStatus({
-      stage: "complete",
-      batchCount: response.batchCount ?? 1
+      stage: "queued",
+      batchCount: 0
     });
   } catch (error) {
+    state.translationRunning = false;
     setStatus(error.message || t("translationCouldNotComplete"), "error");
   } finally {
-    elements.translateButton.disabled =
-      !state.isSupportedPage ||
-      !Boolean(elements.apiKey.value.trim()) ||
-      elements.sourceLanguage.value === elements.targetLanguage.value;
+    refreshTranslateButtonState();
   }
 }
 
@@ -708,13 +783,19 @@ function getTabInfo(urlString) {
   }
 }
 
-async function detectPageLanguageHint() {
-  if (!state.isSupportedPage || !state.activeTab?.id) {
+async function detectPageLanguageHintForTab(tab) {
+  if (!tab?.id) {
+    return "";
+  }
+
+  const tabInfo = getTabInfo(tab.url ?? "");
+
+  if (!tabInfo.isSupportedPage) {
     return "";
   }
 
   try {
-    const detectedLanguage = await chrome.tabs.detectLanguage(state.activeTab.id);
+    const detectedLanguage = await chrome.tabs.detectLanguage(tab.id);
     return detectedLanguage && detectedLanguage !== "und" ? detectedLanguage : "";
   } catch (error) {
     return "";
