@@ -1,0 +1,292 @@
+{
+  "extensionName": {
+    "message": "Context Translator"
+  },
+  "extensionDescription": {
+    "message": "A Chrome extension that translates the current page with Gemini 3.1 Flash-Lite Preview in a concise flow."
+  },
+  "extensionActionTitle": {
+    "message": "Context Translator"
+  },
+  "languageAuto": {
+    "message": "Auto"
+  },
+  "languageKo": {
+    "message": "Korean"
+  },
+  "languageEn": {
+    "message": "English"
+  },
+  "languageJa": {
+    "message": "Japanese"
+  },
+  "languageZhCn": {
+    "message": "Chinese (Simplified)"
+  },
+  "languageZhTw": {
+    "message": "Chinese (Traditional)"
+  },
+  "languageEs": {
+    "message": "Spanish"
+  },
+  "languageFr": {
+    "message": "French"
+  },
+  "languageDe": {
+    "message": "German"
+  },
+  "languageVi": {
+    "message": "Vietnamese"
+  },
+  "sourceLanguageLabel": {
+    "message": "Source language"
+  },
+  "targetLanguageLabel": {
+    "message": "Target language"
+  },
+  "swapLanguagesAriaLabel": {
+    "message": "Swap source and target languages"
+  },
+  "alwaysTranslateLanguageLabelNamed": {
+    "message": "Always translate $LANGUAGE$",
+    "placeholders": {
+      "language": {
+        "content": "$1",
+        "example": "English"
+      }
+    }
+  },
+  "alwaysTranslateLanguageLabelDetected": {
+    "message": "Always translate detected language"
+  },
+  "alwaysTranslateSiteLabel": {
+    "message": "Always translate this site"
+  },
+  "showOriginalOnHoverLabel": {
+    "message": "Show original on hover"
+  },
+  "apiKeyLabel": {
+    "message": "Gemini API key"
+  },
+  "saveButton": {
+    "message": "Save"
+  },
+  "clearButton": {
+    "message": "Clear"
+  },
+  "apiServerStatusLabel": {
+    "message": "API status"
+  },
+  "apiStatusCheckButton": {
+    "message": "Check"
+  },
+  "apiStatusCheckingButton": {
+    "message": "Checking..."
+  },
+  "translateButton": {
+    "message": "Translate"
+  },
+  "apiStatusMissingKey": {
+    "message": "No API key yet."
+  },
+  "apiStatusStoredKeyPrompt": {
+    "message": "A saved key is available. Use Check to verify the connection."
+  },
+  "apiStatusChangedKeyPrompt": {
+    "message": "This key changed. Save it or check the connection."
+  },
+  "apiStatusChecking": {
+    "message": "Checking connection..."
+  },
+  "apiStatusConnected": {
+    "message": "Connected · $MODEL$$LATENCY$",
+    "placeholders": {
+      "model": {
+        "content": "$1",
+        "example": "Gemini 3.1 Flash-Lite Preview"
+      },
+      "latency": {
+        "content": "$2",
+        "example": " · 123ms"
+      }
+    }
+  },
+  "apiStatusLatency": {
+    "message": " · $MILLISECONDS$ms",
+    "placeholders": {
+      "milliseconds": {
+        "content": "$1",
+        "example": "123"
+      }
+    }
+  },
+  "apiStatusCheckedAt": {
+    "message": "checked $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1",
+        "example": "14:32:18"
+      }
+    }
+  },
+  "siteHintUnsupported": {
+    "message": "Site auto-translate is unavailable on this page."
+  },
+  "siteHintCurrentSite": {
+    "message": "Current site: $HOST$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "siteHintCurrentSiteWithLanguage": {
+    "message": "Current site: $HOST$ · Detected language: $LANGUAGE$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "language": {
+        "content": "$2",
+        "example": "English"
+      }
+    }
+  },
+  "unsupportedPage": {
+    "message": "This page can't be translated."
+  },
+  "sameLanguageError": {
+    "message": "Choose different source and target languages."
+  },
+  "missingApiKeyPrompt": {
+    "message": "Enter your Gemini API key."
+  },
+  "swapAutoSourceError": {
+    "message": "When source is set to Auto, choose a specific source language before swapping."
+  },
+  "languageDetectionUnavailableError": {
+    "message": "The current page language is not detected yet, so this option can't be saved."
+  },
+  "apiKeySaved": {
+    "message": "API key saved."
+  },
+  "apiKeyCleared": {
+    "message": "API key cleared."
+  },
+  "translateStarting": {
+    "message": "Starting translation..."
+  },
+  "currentTabMissing": {
+    "message": "Couldn't find the current tab."
+  },
+  "translationQueued": {
+    "message": "Translation is queued..."
+  },
+  "translationBatchInProgress": {
+    "message": "Translating... Processing batch $COUNT$.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "translationContinuing": {
+    "message": "Translating... Finished $COUNT$ batches and continuing with the next one.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "translationCompleted": {
+    "message": "Translation complete."
+  },
+  "translationCompletedMultiBatch": {
+    "message": "Translation complete. Processed $COUNT$ batches in order.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "failedTranslationGeneric": {
+    "message": "The last translation failed. Please try again."
+  },
+  "unknownError": {
+    "message": "An unknown error occurred."
+  },
+  "unsupportedRequest": {
+    "message": "That request is not supported."
+  },
+  "enterApiKeyFirst": {
+    "message": "Enter your API key first."
+  },
+  "modelUnavailableForTranslation": {
+    "message": "This model can't handle translation requests right now."
+  },
+  "apiStatusTimeout": {
+    "message": "The API status check timed out."
+  },
+  "apiServerUnreachable": {
+    "message": "Couldn't connect to the Gemini server."
+  },
+  "missingApiKeyForTranslation": {
+    "message": "Enter your Gemini API key first."
+  },
+  "alreadyTranslating": {
+    "message": "A translation is already running. Please wait a moment."
+  },
+  "cannotRunTranslationOnPage": {
+    "message": "Translation can't run on this page."
+  },
+  "couldNotReadPageText": {
+    "message": "Couldn't read the page text."
+  },
+  "translationTextNotFound": {
+    "message": "Couldn't find text to translate."
+  },
+  "pageChangedPartialApply": {
+    "message": "The page changed, so some paragraphs couldn't be applied. Please try again."
+  },
+  "translationCouldNotComplete": {
+    "message": "Couldn't finish the translation."
+  },
+  "applyTranslationFailed": {
+    "message": "Couldn't apply the translation to the page."
+  },
+  "translateEmptyResponse": {
+    "message": "Gemini returned an empty translation result."
+  },
+  "translateResponseParseFailed": {
+    "message": "Couldn't parse the Gemini response."
+  },
+  "responseMissingTranslations": {
+    "message": "Some translations were missing from the Gemini response."
+  },
+  "reconnectTranslatedSegmentsFailed": {
+    "message": "Couldn't match the translated result back to the page content."
+  },
+  "apiCallFailed": {
+    "message": "The Gemini API request failed."
+  },
+  "checkApiKeyAgain": {
+    "message": "Please check your API key again."
+  },
+  "pageBodyMissing": {
+    "message": "The page body isn't ready yet."
+  },
+  "pageChangedTranslationStopped": {
+    "message": "The page changed, so translation was stopped."
+  },
+  "pageChangedCannotApply": {
+    "message": "The page changed, so the translation couldn't be applied."
+  },
+  "pageStateChangedNeedsRetranslate": {
+    "message": "The page changed, so translation needs to run again."
+  }
+}

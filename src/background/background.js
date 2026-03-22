@@ -1,11 +1,11 @@
-const DEFAULT_SETTINGS = {
-  apiKey: "",
-  sourceLanguage: "auto",
-  targetLanguage: "ko",
-  showOriginalOnHover: true,
-  autoTranslateLanguages: [],
-  alwaysTranslateSites: []
-};
+import {
+  createDefaultSettings,
+  getTranslationLanguageName,
+  normalizeLanguageCode,
+  t
+} from "../shared/i18n.js";
+
+const DEFAULT_SETTINGS = createDefaultSettings();
 
 const MODEL_NAME = "gemini-3.1-flash-lite-preview";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
@@ -22,18 +22,6 @@ const activeTranslations = new Map();
 const tabPageRevisionByTabId = new Map();
 const translationStatusByTabId = new Map();
 let translationRunIdSequence = 0;
-
-const LANGUAGE_NAMES = {
-  ko: "Korean",
-  en: "English",
-  ja: "Japanese",
-  "zh-CN": "Simplified Chinese",
-  "zh-TW": "Traditional Chinese",
-  es: "Spanish",
-  fr: "French",
-  de: "German",
-  vi: "Vietnamese"
-};
 
 chrome.runtime.onInstalled.addListener(async () => {
   const currentSettings = await chrome.storage.local.get(DEFAULT_SETTINGS);
@@ -61,7 +49,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .catch((error) => {
       sendResponse({
         ok: false,
-        error: error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요."
+        error: error instanceof Error ? error.message : t("unknownError")
       });
     });
 
@@ -79,13 +67,13 @@ async function handleMessage(message, sender) {
     case "PAGE_READY":
       return maybeAutoTranslate(sender, message);
     default:
-      return { ok: false, error: "지원하지 않는 요청이에요." };
+      return { ok: false, error: t("unsupportedRequest") };
   }
 }
 
 async function startTranslation(tabId) {
   if (!tabId) {
-    return { ok: false, error: "현재 탭을 찾지 못했어요." };
+    return { ok: false, error: t("currentTabMissing") };
   }
 
   const settings = await getSettings();
@@ -154,7 +142,7 @@ async function checkApiStatus(apiKey) {
   if (!normalizedApiKey) {
     return {
       ok: false,
-      error: "API 키를 먼저 입력해 주세요."
+      error: t("enterApiKeyFirst")
     };
   }
 
@@ -187,7 +175,7 @@ async function checkApiStatus(apiKey) {
     if (!generationMethods.includes("generateContent")) {
       return {
         ok: false,
-        error: "이 모델은 현재 번역 요청에 바로 사용할 수 없어요."
+        error: t("modelUnavailableForTranslation")
       };
     }
 
@@ -201,13 +189,13 @@ async function checkApiStatus(apiKey) {
     if (error?.name === "AbortError") {
       return {
         ok: false,
-        error: "API 상태 확인 시간이 초과됐어요."
+        error: t("apiStatusTimeout")
       };
     }
 
     return {
       ok: false,
-      error: "Gemini 서버에 연결하지 못했어요."
+      error: t("apiServerUnreachable")
     };
   } finally {
     globalThis.clearTimeout(timeoutId);
@@ -220,11 +208,11 @@ async function runTranslation(tabId, settings, options = {}) {
   const pageRevision = getTabPageRevision(tabId);
 
   if (!settings.apiKey) {
-    return { ok: false, error: "Gemini API 키를 먼저 입력해 주세요." };
+    return { ok: false, error: t("missingApiKeyForTranslation") };
   }
 
   if (settings.sourceLanguage === settings.targetLanguage) {
-    return { ok: false, error: "원문 언어와 번역 언어가 같아요." };
+    return { ok: false, error: t("sameLanguageError") };
   }
 
   const activeTranslation = activeTranslations.get(tabId);
@@ -237,7 +225,7 @@ async function runTranslation(tabId, settings, options = {}) {
       return { ok: true, skipped: true, reason: "already-running" };
     }
 
-    return { ok: false, error: "이미 번역 중이에요. 잠시만 기다려 주세요." };
+    return { ok: false, error: t("alreadyTranslating") };
   }
 
   const runId = ++translationRunIdSequence;
@@ -296,7 +284,7 @@ async function executeTranslation(tabId, settings, context) {
         return failTranslation(tabId, context, {
           batchCount,
           translatedCount,
-          error: "현재 페이지에서 번역을 실행할 수 없어요."
+          error: t("cannotRunTranslationOnPage")
         });
       }
 
@@ -304,7 +292,7 @@ async function executeTranslation(tabId, settings, context) {
         return failTranslation(tabId, context, {
           batchCount,
           translatedCount,
-          error: collected?.error ?? "페이지 텍스트를 읽지 못했어요."
+          error: collected?.error ?? t("couldNotReadPageText")
         });
       }
 
@@ -328,7 +316,7 @@ async function executeTranslation(tabId, settings, context) {
         return failTranslation(tabId, context, {
           batchCount,
           translatedCount,
-          error: "번역할 텍스트를 찾지 못했어요."
+          error: t("translationTextNotFound")
         });
       }
 
@@ -381,7 +369,7 @@ async function executeTranslation(tabId, settings, context) {
         return failTranslation(tabId, context, {
           batchCount,
           translatedCount,
-          error: "페이지가 바뀌어서 일부 문단을 적용하지 못했어요. 다시 시도해 주세요."
+          error: t("pageChangedPartialApply")
         });
       }
 
@@ -414,7 +402,7 @@ async function executeTranslation(tabId, settings, context) {
     return failTranslation(tabId, context, {
       batchCount,
       translatedCount,
-      error: error instanceof Error ? error.message : "번역을 완료하지 못했어요."
+      error: error instanceof Error ? error.message : t("translationCouldNotComplete")
     });
   }
 
@@ -484,7 +472,7 @@ async function collectPageTextWithRetry(tabId, options = {}) {
     return lastCollected;
   }
 
-  throw lastError ?? new Error("페이지 텍스트를 읽지 못했어요.");
+  throw lastError ?? new Error(t("couldNotReadPageText"));
 }
 
 async function applyTranslationsToPage(tabId, translations, settings, options = {}) {
@@ -505,7 +493,7 @@ async function applyTranslationsToPage(tabId, translations, settings, options = 
     if (!result?.ok) {
       return {
         ok: false,
-        error: result?.error ?? "페이지에 번역 결과를 적용하지 못했어요."
+        error: result?.error ?? t("applyTranslationFailed")
       };
     }
 
@@ -516,7 +504,7 @@ async function applyTranslationsToPage(tabId, translations, settings, options = 
   } catch (error) {
     return {
       ok: false,
-      error: "페이지에 번역 결과를 적용하지 못했어요."
+      error: t("applyTranslationFailed")
     };
   }
 }
@@ -734,7 +722,7 @@ async function translateChunk(chunk, settings, pageLanguage) {
     }
   }
 
-  throw lastError ?? new Error("번역을 완료하지 못했어요.");
+  throw lastError ?? new Error(t("translationCouldNotComplete"));
 }
 
 async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
@@ -804,7 +792,7 @@ async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
   const responseText = getResponseText(payload);
 
   if (!responseText) {
-    throw new Error("Gemini가 번역 결과를 비워서 돌려줬어요.");
+    throw new Error(t("translateEmptyResponse"));
   }
 
   let parsed;
@@ -812,7 +800,7 @@ async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
   try {
     parsed = JSON.parse(stripCodeFence(responseText));
   } catch (error) {
-    throw new Error("Gemini 응답을 해석하지 못했어요.");
+    throw new Error(t("translateResponseParseFailed"));
   }
 
   return mapValidatedTranslations(chunk, parsed);
@@ -820,7 +808,7 @@ async function translateChunkOnce(chunk, settings, pageLanguage, attempt) {
 
 function buildPrompt(chunk, settings, pageLanguage, attempt) {
   const sourceLanguage = getSourceLanguageInstruction(settings.sourceLanguage, pageLanguage);
-  const targetLanguage = getLanguageName(settings.targetLanguage);
+  const targetLanguage = getTranslationLanguageName(settings.targetLanguage);
   const inputPayload = chunk.map((segment) => ({
     id: segment.id,
     type: segment.type ?? "paragraph",
@@ -881,7 +869,7 @@ function mapValidatedTranslations(chunk, parsed) {
   });
 
   if (missingIds.length > 0) {
-    throw new Error("Gemini 응답에 일부 번역이 빠졌어요.");
+    throw new Error(t("responseMissingTranslations"));
   }
 
   return translatedItems;
@@ -916,7 +904,7 @@ function mergeTranslatedSegments(originalSegments, translatedParts) {
     const matchedParts = partsBySourceId.get(segment.id);
 
     if (!Array.isArray(matchedParts) || matchedParts.length === 0) {
-      throw new Error("번역 결과와 본문을 다시 연결하지 못했어요.");
+      throw new Error(t("reconnectTranslatedSegmentsFailed"));
     }
 
     const orderedParts = matchedParts
@@ -950,13 +938,9 @@ async function getSettings() {
   };
 }
 
-function getLanguageName(code) {
-  return LANGUAGE_NAMES[code] ?? code;
-}
-
 function getSourceLanguageInstruction(sourceLanguage, pageLanguage) {
   if (sourceLanguage !== "auto") {
-    return getLanguageName(sourceLanguage);
+    return getTranslationLanguageName(sourceLanguage);
   }
 
   const normalizedPageLanguage = normalizeLanguageCode(pageLanguage);
@@ -979,33 +963,6 @@ function matchesStoredLanguage(pageLanguage, storedLanguages) {
     const normalizedStoredLanguage = normalizeLanguageCode(language);
     return normalizedStoredLanguage && normalizedStoredLanguage === normalizedPageLanguage;
   });
-}
-
-function normalizeLanguageCode(code) {
-  if (!code) {
-    return "";
-  }
-
-  const normalized = String(code).trim().toLowerCase().replace(/_/g, "-");
-
-  if (
-    normalized.startsWith("zh-cn") ||
-    normalized.startsWith("zh-hans") ||
-    normalized.startsWith("zh-sg")
-  ) {
-    return "zh-cn";
-  }
-
-  if (
-    normalized.startsWith("zh-tw") ||
-    normalized.startsWith("zh-hant") ||
-    normalized.startsWith("zh-hk") ||
-    normalized.startsWith("zh-mo")
-  ) {
-    return "zh-tw";
-  }
-
-  return normalized.split("-")[0];
 }
 
 function getHostname(urlString) {
@@ -1068,11 +1025,11 @@ function getApiErrorMessage(payload) {
   const message = payload?.error?.message;
 
   if (!message) {
-    return "Gemini API 호출이 실패했어요.";
+    return t("apiCallFailed");
   }
 
   if (message.toLowerCase().includes("api key")) {
-    return "API 키를 다시 확인해 주세요.";
+    return t("checkApiKeyAgain");
   }
 
   return message;
@@ -1177,7 +1134,7 @@ function clearTranslationStatus(tabId, runId) {
 }
 
 function failTranslation(tabId, context, details) {
-  const errorMessage = details.error || "번역을 완료하지 못했어요.";
+  const errorMessage = details.error || t("translationCouldNotComplete");
 
   updateTranslationStatus(tabId, {
     runId: context.runId,

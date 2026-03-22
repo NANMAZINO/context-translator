@@ -1,0 +1,292 @@
+{
+  "extensionName": {
+    "message": "Context Translator"
+  },
+  "extensionDescription": {
+    "message": "Gemini 3.1 Flash-Lite Preview로 현재 페이지를 간결하게 번역하는 크롬 확장 프로그램"
+  },
+  "extensionActionTitle": {
+    "message": "Context Translator"
+  },
+  "languageAuto": {
+    "message": "자동"
+  },
+  "languageKo": {
+    "message": "한국어"
+  },
+  "languageEn": {
+    "message": "영어"
+  },
+  "languageJa": {
+    "message": "일본어"
+  },
+  "languageZhCn": {
+    "message": "중국어(간체)"
+  },
+  "languageZhTw": {
+    "message": "중국어(번체)"
+  },
+  "languageEs": {
+    "message": "스페인어"
+  },
+  "languageFr": {
+    "message": "프랑스어"
+  },
+  "languageDe": {
+    "message": "독일어"
+  },
+  "languageVi": {
+    "message": "베트남어"
+  },
+  "sourceLanguageLabel": {
+    "message": "원문 언어"
+  },
+  "targetLanguageLabel": {
+    "message": "번역 언어"
+  },
+  "swapLanguagesAriaLabel": {
+    "message": "원문 언어와 번역 언어 바꾸기"
+  },
+  "alwaysTranslateLanguageLabelNamed": {
+    "message": "$LANGUAGE$ 항상 번역하기",
+    "placeholders": {
+      "language": {
+        "content": "$1",
+        "example": "영어"
+      }
+    }
+  },
+  "alwaysTranslateLanguageLabelDetected": {
+    "message": "감지된 언어 항상 번역하기"
+  },
+  "alwaysTranslateSiteLabel": {
+    "message": "이 사이트 항상 번역하기"
+  },
+  "showOriginalOnHoverLabel": {
+    "message": "원문 함께 보기"
+  },
+  "apiKeyLabel": {
+    "message": "Gemini API 키"
+  },
+  "saveButton": {
+    "message": "저장"
+  },
+  "clearButton": {
+    "message": "초기화"
+  },
+  "apiServerStatusLabel": {
+    "message": "API 서버 상태"
+  },
+  "apiStatusCheckButton": {
+    "message": "확인"
+  },
+  "apiStatusCheckingButton": {
+    "message": "확인 중..."
+  },
+  "translateButton": {
+    "message": "번역"
+  },
+  "apiStatusMissingKey": {
+    "message": "API 키가 없어요."
+  },
+  "apiStatusStoredKeyPrompt": {
+    "message": "저장된 키가 있어요. 확인 버튼으로 연결 상태를 확인해 주세요."
+  },
+  "apiStatusChangedKeyPrompt": {
+    "message": "변경된 키예요. 저장하거나 확인해 주세요."
+  },
+  "apiStatusChecking": {
+    "message": "연결 확인 중..."
+  },
+  "apiStatusConnected": {
+    "message": "정상 연결 · $MODEL$$LATENCY$",
+    "placeholders": {
+      "model": {
+        "content": "$1",
+        "example": "Gemini 3.1 Flash-Lite Preview"
+      },
+      "latency": {
+        "content": "$2",
+        "example": " · 123ms"
+      }
+    }
+  },
+  "apiStatusLatency": {
+    "message": " · $MILLISECONDS$ms",
+    "placeholders": {
+      "milliseconds": {
+        "content": "$1",
+        "example": "123"
+      }
+    }
+  },
+  "apiStatusCheckedAt": {
+    "message": "확인 $TIME$",
+    "placeholders": {
+      "time": {
+        "content": "$1",
+        "example": "14:32:18"
+      }
+    }
+  },
+  "siteHintUnsupported": {
+    "message": "이 페이지에서는 사이트 자동 번역을 사용할 수 없어요."
+  },
+  "siteHintCurrentSite": {
+    "message": "현재 사이트 $HOST$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "siteHintCurrentSiteWithLanguage": {
+    "message": "현재 사이트 $HOST$ · 감지 언어: $LANGUAGE$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "language": {
+        "content": "$2",
+        "example": "영어"
+      }
+    }
+  },
+  "unsupportedPage": {
+    "message": "이 페이지는 번역을 지원하지 않아요."
+  },
+  "sameLanguageError": {
+    "message": "원문 언어와 번역 언어를 다르게 선택해 주세요."
+  },
+  "missingApiKeyPrompt": {
+    "message": "Gemini API 키를 입력해 주세요."
+  },
+  "swapAutoSourceError": {
+    "message": "Auto 원문일 때는 먼저 원문 언어를 직접 선택해 주세요."
+  },
+  "languageDetectionUnavailableError": {
+    "message": "현재 페이지 언어를 아직 감지하지 못해서 이 옵션을 저장할 수 없어요."
+  },
+  "apiKeySaved": {
+    "message": "API 키를 저장했어요."
+  },
+  "apiKeyCleared": {
+    "message": "API 키를 초기화했어요."
+  },
+  "translateStarting": {
+    "message": "번역을 시작할게요..."
+  },
+  "currentTabMissing": {
+    "message": "현재 탭을 찾지 못했어요."
+  },
+  "translationQueued": {
+    "message": "번역 대기 중이에요..."
+  },
+  "translationBatchInProgress": {
+    "message": "번역 중... $COUNT$번째 묶음을 처리하고 있어요.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "translationContinuing": {
+    "message": "번역 중... $COUNT$개 묶음을 마쳤고 다음 묶음을 이어서 처리하고 있어요.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "translationCompleted": {
+    "message": "번역을 완료했어요."
+  },
+  "translationCompletedMultiBatch": {
+    "message": "전체 번역을 완료했어요. $COUNT$개 묶음을 순서대로 처리했어요.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "failedTranslationGeneric": {
+    "message": "마지막 번역이 실패했어요. 다시 시도해 주세요."
+  },
+  "unknownError": {
+    "message": "알 수 없는 오류가 발생했어요."
+  },
+  "unsupportedRequest": {
+    "message": "지원하지 않는 요청이에요."
+  },
+  "enterApiKeyFirst": {
+    "message": "API 키를 먼저 입력해 주세요."
+  },
+  "modelUnavailableForTranslation": {
+    "message": "이 모델은 현재 번역 요청에 바로 사용할 수 없어요."
+  },
+  "apiStatusTimeout": {
+    "message": "API 상태 확인 시간이 초과됐어요."
+  },
+  "apiServerUnreachable": {
+    "message": "Gemini 서버에 연결하지 못했어요."
+  },
+  "missingApiKeyForTranslation": {
+    "message": "Gemini API 키를 먼저 입력해 주세요."
+  },
+  "alreadyTranslating": {
+    "message": "이미 번역 중이에요. 잠시만 기다려 주세요."
+  },
+  "cannotRunTranslationOnPage": {
+    "message": "현재 페이지에서 번역을 실행할 수 없어요."
+  },
+  "couldNotReadPageText": {
+    "message": "페이지 텍스트를 읽지 못했어요."
+  },
+  "translationTextNotFound": {
+    "message": "번역할 텍스트를 찾지 못했어요."
+  },
+  "pageChangedPartialApply": {
+    "message": "페이지가 바뀌어서 일부 문단을 적용하지 못했어요. 다시 시도해 주세요."
+  },
+  "translationCouldNotComplete": {
+    "message": "번역을 완료하지 못했어요."
+  },
+  "applyTranslationFailed": {
+    "message": "페이지에 번역 결과를 적용하지 못했어요."
+  },
+  "translateEmptyResponse": {
+    "message": "Gemini가 번역 결과를 비워서 돌려줬어요."
+  },
+  "translateResponseParseFailed": {
+    "message": "Gemini 응답을 해석하지 못했어요."
+  },
+  "responseMissingTranslations": {
+    "message": "Gemini 응답에 일부 번역이 빠졌어요."
+  },
+  "reconnectTranslatedSegmentsFailed": {
+    "message": "번역 결과와 본문을 다시 연결하지 못했어요."
+  },
+  "apiCallFailed": {
+    "message": "Gemini API 호출이 실패했어요."
+  },
+  "checkApiKeyAgain": {
+    "message": "API 키를 다시 확인해 주세요."
+  },
+  "pageBodyMissing": {
+    "message": "페이지 본문을 아직 찾지 못했어요."
+  },
+  "pageChangedTranslationStopped": {
+    "message": "페이지가 바뀌어서 번역을 중단했어요."
+  },
+  "pageChangedCannotApply": {
+    "message": "페이지가 바뀌어서 번역 결과를 적용하지 못했어요."
+  },
+  "pageStateChangedNeedsRetranslate": {
+    "message": "페이지 상태가 바뀌어서 다시 번역이 필요해요."
+  }
+}

@@ -11,6 +11,10 @@ const pageState = {
   translationSnapshot: null
 };
 
+function t(messageName, substitutions, fallback = "") {
+  return chrome.i18n.getMessage(messageName, substitutions) || fallback || messageName;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "COLLECT_PAGE_TEXT") {
     collectPageText({
@@ -22,7 +26,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((error) => {
         sendResponse({
           ok: false,
-          error: error instanceof Error ? error.message : "페이지 텍스트를 읽지 못했어요."
+          error: error instanceof Error ? error.message : t("couldNotReadPageText")
         });
       });
 
@@ -55,7 +59,7 @@ async function collectPageText(options = {}) {
   if (!document.body) {
     return {
       ok: false,
-      error: "페이지 본문을 아직 찾지 못했어요."
+      error: t("pageBodyMissing")
     };
   }
 
@@ -67,7 +71,7 @@ async function collectPageText(options = {}) {
   if (expectedPageUrl && expectedPageUrl !== window.location.href) {
     return {
       ok: false,
-      error: "페이지가 바뀌어서 번역을 중단했어요."
+      error: t("pageChangedTranslationStopped")
     };
   }
 
@@ -91,7 +95,7 @@ function applyTranslations(translations, showOriginalOnHover, options = {}) {
   if (expectedPageUrl && expectedPageUrl !== window.location.href) {
     return {
       ok: false,
-      error: "페이지가 바뀌어서 번역 결과를 적용하지 못했어요."
+      error: t("pageChangedCannotApply")
     };
   }
 
@@ -100,7 +104,7 @@ function applyTranslations(translations, showOriginalOnHover, options = {}) {
   if (!snapshot) {
     return {
       ok: false,
-      error: "페이지 상태가 바뀌어서 다시 번역이 필요해요."
+      error: t("pageStateChangedNeedsRetranslate")
     };
   }
 

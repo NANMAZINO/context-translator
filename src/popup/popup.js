@@ -1,25 +1,15 @@
-const DEFAULT_SETTINGS = {
-  apiKey: "",
-  sourceLanguage: "auto",
-  targetLanguage: "ko",
-  showOriginalOnHover: true,
-  autoTranslateLanguages: [],
-  alwaysTranslateSites: []
-};
-const API_STATUS_CACHE_STORAGE_KEY = "apiStatusCache";
+import {
+  LANGUAGE_CODES,
+  createDefaultSettings,
+  getLanguageLabel,
+  getMessageLocale,
+  getUiLanguageTag,
+  normalizeLanguageCode,
+  t
+} from "../shared/i18n.js";
 
-const LANGUAGES = [
-  { code: "auto", label: "자동" },
-  { code: "ko", label: "한국어" },
-  { code: "en", label: "영어" },
-  { code: "ja", label: "일본어" },
-  { code: "zh-CN", label: "중국어(간체)" },
-  { code: "zh-TW", label: "중국어(번체)" },
-  { code: "es", label: "스페인어" },
-  { code: "fr", label: "프랑스어" },
-  { code: "de", label: "독일어" },
-  { code: "vi", label: "베트남어" }
-];
+const DEFAULT_SETTINGS = createDefaultSettings();
+const API_STATUS_CACHE_STORAGE_KEY = "apiStatusCache";
 
 const state = {
   activeTab: null,
@@ -28,13 +18,7 @@ const state = {
   isSupportedPage: false,
   pageLanguageHint: "",
   settings: { ...DEFAULT_SETTINGS },
-  apiStatus: {
-    message: "API 키가 없어요.",
-    tone: "normal",
-    checking: false,
-    requestId: 0,
-    checkedAtLabel: ""
-  }
+  apiStatus: createDefaultApiStatus()
 };
 
 const elements = {};
@@ -43,8 +27,19 @@ document.addEventListener("DOMContentLoaded", () => {
   void initializePopup();
 });
 
+function createDefaultApiStatus() {
+  return {
+    message: t("apiStatusMissingKey"),
+    tone: "normal",
+    checking: false,
+    requestId: 0,
+    checkedAtLabel: ""
+  };
+}
+
 async function initializePopup() {
   cacheElements();
+  applyStaticTranslations();
   bindRuntimeEvents();
   populateLanguageOptions();
   bindEvents();
@@ -52,21 +47,46 @@ async function initializePopup() {
 }
 
 function cacheElements() {
+  elements.sourceLanguageSrLabel = document.getElementById("sourceLanguageSrLabel");
   elements.sourceLanguage = document.getElementById("sourceLanguage");
+  elements.targetLanguageSrLabel = document.getElementById("targetLanguageSrLabel");
   elements.targetLanguage = document.getElementById("targetLanguage");
   elements.swapLanguages = document.getElementById("swapLanguages");
   elements.alwaysTranslateLanguage = document.getElementById("alwaysTranslateLanguage");
   elements.alwaysTranslateLanguageLabel = document.getElementById("alwaysTranslateLanguageLabel");
   elements.alwaysTranslateSite = document.getElementById("alwaysTranslateSite");
+  elements.alwaysTranslateSiteLabel = document.getElementById("alwaysTranslateSiteLabel");
   elements.showOriginalOnHover = document.getElementById("showOriginalOnHover");
+  elements.showOriginalOnHoverLabel = document.getElementById("showOriginalOnHoverLabel");
   elements.siteHint = document.getElementById("siteHint");
+  elements.apiKeyLabel = document.getElementById("apiKeyLabel");
   elements.apiKey = document.getElementById("apiKey");
   elements.saveApiKey = document.getElementById("saveApiKey");
   elements.clearApiKey = document.getElementById("clearApiKey");
+  elements.apiServerStatusLabel = document.getElementById("apiServerStatusLabel");
   elements.apiServerStatus = document.getElementById("apiServerStatus");
   elements.checkApiStatus = document.getElementById("checkApiStatus");
   elements.statusMessage = document.getElementById("statusMessage");
   elements.translateButton = document.getElementById("translateButton");
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = getUiLanguageTag();
+  document.title = t("extensionName") || "Context Translator";
+
+  elements.sourceLanguageSrLabel.textContent = t("sourceLanguageLabel");
+  elements.targetLanguageSrLabel.textContent = t("targetLanguageLabel");
+  elements.sourceLanguage.setAttribute("aria-label", t("sourceLanguageLabel"));
+  elements.targetLanguage.setAttribute("aria-label", t("targetLanguageLabel"));
+  elements.swapLanguages.setAttribute("aria-label", t("swapLanguagesAriaLabel"));
+  elements.alwaysTranslateSiteLabel.textContent = t("alwaysTranslateSiteLabel");
+  elements.showOriginalOnHoverLabel.textContent = t("showOriginalOnHoverLabel");
+  elements.apiKeyLabel.textContent = t("apiKeyLabel");
+  elements.saveApiKey.textContent = t("saveButton");
+  elements.clearApiKey.textContent = t("clearButton");
+  elements.apiServerStatusLabel.textContent = t("apiServerStatusLabel");
+  elements.checkApiStatus.textContent = t("apiStatusCheckButton");
+  elements.translateButton.textContent = t("translateButton");
 }
 
 function bindRuntimeEvents() {
@@ -89,13 +109,13 @@ function bindRuntimeEvents() {
 }
 
 function populateLanguageOptions() {
-  elements.sourceLanguage.innerHTML = LANGUAGES
-    .map((language) => `<option value="${language.code}">${language.label}</option>`)
+  elements.sourceLanguage.innerHTML = LANGUAGE_CODES
+    .map((code) => `<option value="${code}">${getLanguageLabel(code)}</option>`)
     .join("");
 
-  elements.targetLanguage.innerHTML = LANGUAGES
-    .filter((language) => language.code !== "auto")
-    .map((language) => `<option value="${language.code}">${language.label}</option>`)
+  elements.targetLanguage.innerHTML = LANGUAGE_CODES
+    .filter((code) => code !== "auto")
+    .map((code) => `<option value="${code}">${getLanguageLabel(code)}</option>`)
     .join("");
 }
 
@@ -204,7 +224,9 @@ function renderApiServerStatus() {
   elements.apiServerStatus.textContent = `${state.apiStatus.message}${checkedAtSuffix}`;
   elements.apiServerStatus.className = `api-server-status__value${toneClass}`;
   elements.checkApiStatus.disabled = state.apiStatus.checking;
-  elements.checkApiStatus.textContent = state.apiStatus.checking ? "확인 중..." : "확인";
+  elements.checkApiStatus.textContent = state.apiStatus.checking
+    ? t("apiStatusCheckingButton")
+    : t("apiStatusCheckButton");
 }
 
 function setApiServerStatus(message, tone = "normal", checkedAtLabel = "") {
@@ -216,8 +238,8 @@ function setApiServerStatus(message, tone = "normal", checkedAtLabel = "") {
 
 function resetApiServerStatus(apiKey = state.settings.apiKey) {
   state.apiStatus.message = apiKey
-    ? "저장된 키가 있어요. 확인 버튼으로 연결 상태를 확인해 주세요."
-    : "API 키가 없어요.";
+    ? t("apiStatusStoredKeyPrompt")
+    : t("apiStatusMissingKey");
   state.apiStatus.tone = "normal";
   state.apiStatus.checking = false;
   state.apiStatus.checkedAtLabel = "";
@@ -229,7 +251,7 @@ function restoreApiServerStatus(apiKey, cache) {
     return;
   }
 
-  if (!isStoredApiStatus(cache)) {
+  if (!isStoredApiStatus(cache) || cache.uiLocale !== getMessageLocale()) {
     resetApiServerStatus(apiKey);
     return;
   }
@@ -248,12 +270,12 @@ function handleApiKeyInput() {
   const apiKey = elements.apiKey.value.trim();
 
   if (!apiKey) {
-    setApiServerStatus("API 키가 없어요.", "normal");
+    setApiServerStatus(t("apiStatusMissingKey"), "normal");
     return;
   }
 
   if (apiKey !== state.settings.apiKey) {
-    setApiServerStatus("변경된 키예요. 저장하거나 확인해 주세요.", "normal");
+    setApiServerStatus(t("apiStatusChangedKeyPrompt"), "normal");
     return;
   }
 
@@ -267,13 +289,15 @@ function updateAlwaysTranslateLanguageLabel() {
   if (elements.sourceLanguage.value === "auto") {
     const detectedLabel = getLanguageLabel(state.pageLanguageHint);
     elements.alwaysTranslateLanguageLabel.textContent = detectedLabel
-      ? `${detectedLabel} 항상 번역하기`
-      : "감지된 언어 항상 번역하기";
+      ? t("alwaysTranslateLanguageLabelNamed", [detectedLabel])
+      : t("alwaysTranslateLanguageLabelDetected");
     return;
   }
 
   const sourceLabel = getLanguageLabel(elements.sourceLanguage.value);
-  elements.alwaysTranslateLanguageLabel.textContent = `${sourceLabel} 항상 번역하기`;
+  elements.alwaysTranslateLanguageLabel.textContent = t("alwaysTranslateLanguageLabelNamed", [
+    sourceLabel
+  ]);
 }
 
 function syncLanguageAutoTranslateCheckbox() {
@@ -297,16 +321,19 @@ function syncSiteAutoTranslateCheckbox() {
 
 function renderSiteHint() {
   if (!state.isSupportedPage || !state.currentHost) {
-    elements.siteHint.textContent = "이 페이지에서는 사이트 자동 번역을 사용할 수 없어요.";
+    elements.siteHint.textContent = t("siteHintUnsupported");
     return;
   }
 
   if (elements.sourceLanguage.value === "auto" && state.pageLanguageHint) {
-    elements.siteHint.textContent = `현재 사이트 ${state.currentHost} · 감지 언어: ${getLanguageLabel(state.pageLanguageHint)}`;
+    elements.siteHint.textContent = t("siteHintCurrentSiteWithLanguage", [
+      state.currentHost,
+      getLanguageLabel(state.pageLanguageHint)
+    ]);
     return;
   }
 
-  elements.siteHint.textContent = `현재 사이트 ${state.currentHost}`;
+  elements.siteHint.textContent = t("siteHintCurrentSite", [state.currentHost]);
 }
 
 function updateSwapButtonState() {
@@ -322,17 +349,17 @@ function refreshTranslateButtonState() {
     !state.isSupportedPage || !hasApiKey || sourceLanguage === targetLanguage;
 
   if (!state.isSupportedPage) {
-    setStatus("이 페이지는 번역을 지원하지 않아요.", "error");
+    setStatus(t("unsupportedPage"), "error");
     return;
   }
 
   if (sourceLanguage === targetLanguage) {
-    setStatus("원문 언어와 번역 언어를 다르게 선택해 주세요.", "error");
+    setStatus(t("sameLanguageError"), "error");
     return;
   }
 
   if (!hasApiKey) {
-    setStatus("Gemini API 키를 입력해 주세요.", "normal");
+    setStatus(t("missingApiKeyPrompt"), "normal");
     return;
   }
 
@@ -355,7 +382,7 @@ async function handleTargetLanguageChange() {
 
 async function handleSwapLanguages() {
   if (elements.sourceLanguage.value === "auto") {
-    setStatus("Auto 원문일 때는 먼저 원문 언어를 직접 선택해 주세요.", "error");
+    setStatus(t("swapAutoSourceError"), "error");
     return;
   }
 
@@ -381,7 +408,7 @@ async function handleAlwaysTranslateLanguageChange() {
 
   if (!selectedSourceLanguage) {
     elements.alwaysTranslateLanguage.checked = false;
-    setStatus("현재 페이지 언어를 아직 감지하지 못해서 이 옵션을 저장할 수 없어요.", "error");
+    setStatus(t("languageDetectionUnavailableError"), "error");
     return;
   }
 
@@ -433,9 +460,9 @@ async function saveApiKey() {
   refreshTranslateButtonState();
 
   if (apiKey) {
-    setStatus("API 키를 저장했어요.", "success");
+    setStatus(t("apiKeySaved"), "success");
   } else {
-    setStatus("API 키를 비웠어요.", "success");
+    setStatus(t("apiKeyCleared"), "success");
   }
 
   await refreshApiServerStatus({ apiKey });
@@ -445,8 +472,8 @@ async function clearApiKey() {
   elements.apiKey.value = "";
   await saveSettings({ apiKey: "" });
   refreshTranslateButtonState();
-  setStatus("API 키를 초기화했어요.", "success");
-  setApiServerStatus("API 키가 없어요.", "normal");
+  setStatus(t("apiKeyCleared"), "success");
+  setApiServerStatus(t("apiStatusMissingKey"), "normal");
 }
 
 async function refreshApiServerStatus(options = {}) {
@@ -454,7 +481,7 @@ async function refreshApiServerStatus(options = {}) {
 
   if (!apiKey) {
     if (!quietOnEmpty) {
-      setApiServerStatus("API 키가 없어요.", "normal");
+      setApiServerStatus(t("apiStatusMissingKey"), "normal");
     }
     return;
   }
@@ -463,7 +490,7 @@ async function refreshApiServerStatus(options = {}) {
   state.apiStatus.requestId = requestId;
   state.apiStatus.checking = true;
   renderApiServerStatus();
-  setApiServerStatus("연결 확인 중...", "normal");
+  setApiServerStatus(t("apiStatusChecking"), "normal");
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -476,12 +503,15 @@ async function refreshApiServerStatus(options = {}) {
     }
 
     if (!response?.ok) {
-      throw new Error(response?.error ?? "API 상태를 확인하지 못했어요.");
+      throw new Error(response?.error ?? t("translationCouldNotComplete"));
     }
 
     const checkedAt = Date.now();
-    const latency = typeof response.latencyMs === "number" ? ` · ${response.latencyMs}ms` : "";
-    const successMessage = `정상 연결 · ${response.modelName}${latency}`;
+    const latency = typeof response.latencyMs === "number"
+      ? t("apiStatusLatency", [String(response.latencyMs)])
+      : "";
+    const successMessage = t("apiStatusConnected", [response.modelName, latency]);
+
     setApiServerStatus(
       successMessage,
       "success",
@@ -490,7 +520,8 @@ async function refreshApiServerStatus(options = {}) {
     await persistApiServerStatus({
       message: successMessage,
       tone: "success",
-      checkedAt
+      checkedAt,
+      uiLocale: getMessageLocale()
     });
   } catch (error) {
     if (requestId !== state.apiStatus.requestId || apiKey !== elements.apiKey.value.trim()) {
@@ -498,7 +529,7 @@ async function refreshApiServerStatus(options = {}) {
     }
 
     const checkedAt = Date.now();
-    const errorMessage = error.message || "API 상태를 확인하지 못했어요.";
+    const errorMessage = error.message || t("translationCouldNotComplete");
     setApiServerStatus(
       errorMessage,
       "error",
@@ -507,7 +538,8 @@ async function refreshApiServerStatus(options = {}) {
     await persistApiServerStatus({
       message: errorMessage,
       tone: "error",
-      checkedAt
+      checkedAt,
+      uiLocale: getMessageLocale()
     });
   } finally {
     if (requestId === state.apiStatus.requestId) {
@@ -525,20 +557,17 @@ function updateTranslationProgressStatus(message) {
   }
 
   if (stage === "queued") {
-    setStatus("번역 대기 중이에요...", "normal");
+    setStatus(t("translationQueued"), "normal");
     return;
   }
 
   if (stage === "translating") {
-    setStatus(`번역 중... ${message.batchCount}번째 묶음을 처리하고 있어요.`, "normal");
+    setStatus(t("translationBatchInProgress", [String(message.batchCount)]), "normal");
     return;
   }
 
   if (stage === "continuing") {
-    setStatus(
-      `번역 중... ${message.batchCount}개 묶음을 마쳤고 다음 묶음을 이어서 처리하고 있어요.`,
-      "normal"
-    );
+    setStatus(t("translationContinuing", [String(message.batchCount)]), "normal");
     return;
   }
 
@@ -549,14 +578,11 @@ function updateTranslationProgressStatus(message) {
 
   if (stage === "complete") {
     if ((message.batchCount ?? 1) > 1) {
-      setStatus(
-        `전체 번역을 완료했어요. ${message.batchCount}개 묶음을 순서대로 처리했어요.`,
-        "success"
-      );
+      setStatus(t("translationCompletedMultiBatch", [String(message.batchCount)]), "success");
       return;
     }
 
-    setStatus("번역을 완료했어요.", "success");
+    setStatus(t("translationCompleted"), "success");
   }
 }
 
@@ -573,13 +599,13 @@ function getFailedTranslationMessage(message) {
     message?.error ||
     message?.errorMessage ||
     message?.message ||
-    "마지막 번역이 실패했어요. 다시 시도해 주세요."
+    t("failedTranslationGeneric")
   );
 }
 
 async function handleTranslate() {
   if (!state.activeTab?.id) {
-    setStatus("현재 탭을 찾지 못했어요.", "error");
+    setStatus(t("currentTabMissing"), "error");
     return;
   }
 
@@ -596,7 +622,7 @@ async function handleTranslate() {
     return;
   }
 
-  setStatus("번역을 시작할게요...", "normal");
+  setStatus(t("translateStarting"), "normal");
   elements.translateButton.disabled = true;
 
   try {
@@ -606,7 +632,7 @@ async function handleTranslate() {
     });
 
     if (!response?.ok) {
-      throw new Error(response?.error ?? "번역에 실패했어요.");
+      throw new Error(response?.error ?? t("translationCouldNotComplete"));
     }
 
     updateTranslationProgressStatus({
@@ -614,7 +640,7 @@ async function handleTranslate() {
       batchCount: response.batchCount ?? 1
     });
   } catch (error) {
-    setStatus(error.message || "번역에 실패했어요.", "error");
+    setStatus(error.message || t("translationCouldNotComplete"), "error");
   } finally {
     elements.translateButton.disabled =
       !state.isSupportedPage ||
@@ -659,7 +685,9 @@ function isStoredApiStatus(cache) {
     typeof cache?.message === "string" &&
     (cache?.tone === "normal" || cache?.tone === "success" || cache?.tone === "error") &&
     typeof cache?.checkedAt === "number" &&
-    cache.checkedAt > 0
+    cache.checkedAt > 0 &&
+    typeof cache?.uiLocale === "string" &&
+    cache.uiLocale.length > 0
   );
 }
 
@@ -678,25 +706,6 @@ function getTabInfo(urlString) {
       isSupportedPage: false
     };
   }
-}
-
-function getLanguageLabel(code) {
-  if (!code || code === "und") {
-    return "";
-  }
-
-  const exactMatch = LANGUAGES.find((language) => language.code === code);
-
-  if (exactMatch) {
-    return exactMatch.label;
-  }
-
-  const normalizedCode = normalizeLanguageCode(code);
-
-  return (
-    LANGUAGES.find((language) => normalizeLanguageCode(language.code) === normalizedCode)?.label ??
-    code
-  );
 }
 
 async function detectPageLanguageHint() {
@@ -718,33 +727,6 @@ function getEffectiveSourceLanguage() {
   }
 
   return state.pageLanguageHint || "";
-}
-
-function normalizeLanguageCode(code) {
-  if (!code) {
-    return "";
-  }
-
-  const normalized = String(code).trim().toLowerCase().replace(/_/g, "-");
-
-  if (
-    normalized.startsWith("zh-cn") ||
-    normalized.startsWith("zh-hans") ||
-    normalized.startsWith("zh-sg")
-  ) {
-    return "zh-cn";
-  }
-
-  if (
-    normalized.startsWith("zh-tw") ||
-    normalized.startsWith("zh-hant") ||
-    normalized.startsWith("zh-hk") ||
-    normalized.startsWith("zh-mo")
-  ) {
-    return "zh-tw";
-  }
-
-  return normalized.split("-")[0];
 }
 
 function matchesStoredLanguageCode(storedLanguages, targetLanguage) {
@@ -774,10 +756,12 @@ function clearStatus() {
 }
 
 function formatCheckedAt(timestamp) {
-  return `확인 ${new Date(timestamp).toLocaleTimeString("ko-KR", {
+  const timeLabel = new Date(timestamp).toLocaleTimeString(getUiLanguageTag(), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: false
-  })}`;
+  });
+
+  return t("apiStatusCheckedAt", [timeLabel]);
 }
