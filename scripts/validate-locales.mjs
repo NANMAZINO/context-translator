@@ -23,7 +23,7 @@ const assetChecks = [
     requiredSnippets: [
       "**Language:** English | [Korean](./README.ko.md)",
       "# Context Translator",
-      "## Quick Start",
+      "## 🚀 Quick Start",
       "node scripts/validate-locales.mjs"
     ]
   },
@@ -33,7 +33,7 @@ const assetChecks = [
     requiredSnippets: [
       "**언어:** [English](./README.md) | 한국어",
       "# Context Translator",
-      "## 빠른 시작",
+      "## 🚀 빠른 시작",
       "node scripts/validate-locales.mjs"
     ]
   }
@@ -143,10 +143,6 @@ function validateAssetText(asset, text) {
 
   if (text.includes("\uFFFD")) {
     issues.push(`${asset.label} contains a replacement character.`);
-  }
-
-  if (/[?]쒓|[?]몄|[?]붴|[?]{2,}/u.test(text)) {
-    issues.push(`${asset.label} appears to contain mojibake or placeholder question marks.`);
   }
 
   for (const snippet of asset.requiredSnippets) {

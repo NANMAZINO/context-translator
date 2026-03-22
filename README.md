@@ -20,14 +20,14 @@ Translate the current webpage with `gemini-3.1-flash-lite-preview` in a simple C
 > This extension requires your own Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 > It works on `http://` and `https://` pages, and does not run on internal browser pages such as `chrome://`.
 
-## Overview
+## ✨ Overview
 
 Context Translator is a beginner-friendly Chrome extension prototype for translating the current page.
 Instead of trying to do everything, it focuses on a short and readable flow:
 
 `open popup -> confirm settings -> translate`
 
-## Features
+## 🔍 Features
 
 | Feature | Description |
 | :------ | :---------- |
@@ -40,7 +40,7 @@ Instead of trying to do everything, it focuses on a short and readable flow:
 | Korean and English UI | Follow Chrome UI language in the popup |
 | API key management | Save, clear, and verify the Gemini API key in the popup |
 
-## Quick Start
+## 🚀 Quick Start
 
 You can load the extension directly into Chrome without a build step.
 
@@ -57,7 +57,7 @@ You can load the extension directly into Chrome without a build step.
 > [!TIP]
 > After changing code, click **Reload** on `chrome://extensions` to apply the update immediately.
 
-## Supported Languages
+## 🌍 Supported Languages
 
 | Language | Source | Target |
 | :------- | :----: | :----: |
@@ -72,7 +72,7 @@ You can load the extension directly into Chrome without a build step.
 | Vietnamese |  ✅  |  ✅  |
 | Auto detect |  ✅  |  -  |
 
-## How It Works
+## ⚙️ How It Works
 
 ```mermaid
 flowchart LR
@@ -84,6 +84,12 @@ flowchart LR
     E -->|Translation result| C
     C -->|Apply translation| D
     D -->|Update page| A
+
+    style A fill:#4285F4,color:#fff,stroke:none
+    style B fill:#0F9D58,color:#fff,stroke:none
+    style C fill:#F4B400,color:#000,stroke:none
+    style D fill:#DB4437,color:#fff,stroke:none
+    style E fill:#8E75B2,color:#fff,stroke:none
 ```
 
 ### Step by Step
@@ -95,7 +101,7 @@ flowchart LR
 5. Gemini returns translated JSON for each chunk.
 6. The content script applies the translated text back to the page.
 
-## Auto-Translate Rules
+## 🛡️ Auto-Translate Rules
 
 Auto-translate runs when either of these is true:
 
@@ -110,7 +116,7 @@ Auto-translate runs when either of these is true:
 > - Parts of Google Docs, Drive, and Calendar
 > - Pages with password input fields
 
-## Translation Quality Philosophy
+## 🎯 Translation Quality Philosophy
 
 > Fast and reliably readable translation is more important than overly clever translation.
 
@@ -124,7 +130,7 @@ It is a heuristic, best-effort approach, so perfect results are not guaranteed o
 | Merge short parts | Re-merge very short pieces to reduce context loss |
 | Type hints | Pass light webpage hints such as button, heading, label, link, or paragraph |
 
-## Storage and Security Notes
+## 🔐 Storage and Security Notes
 
 Settings are stored in `chrome.storage.local`.
 
@@ -142,30 +148,30 @@ Settings are stored in `chrome.storage.local`.
 > The Gemini API key is stored locally on the user's machine.
 > If you plan to distribute it publicly, a server proxy architecture would be safer.
 
-## Project Structure
+## 📁 Project Structure
 
 ```text
 context-translator/
-|- manifest.json
-|- popup.html
-|- README.md
-|- README.ko.md
-|- _locales/
-|  |- en/messages.json
-|  `- ko/messages.json
-|- docs/
-|- scripts/
-|  `- validate-locales.mjs
-`- src/
-   |- background/background.js
-   |- content/content.css
-   |- content/content.js
-   |- popup/popup.css
-   |- popup/popup.js
-   `- shared/i18n.js
+├── manifest.json
+├── popup.html
+├── README.md
+├── README.ko.md
+├── _locales/
+│   ├── en/messages.json
+│   └── ko/messages.json
+├── docs/
+├── scripts/
+│   └── validate-locales.mjs
+└── src/
+    ├── background/background.js
+    ├── content/content.css
+    ├── content/content.js
+    ├── popup/popup.css
+    ├── popup/popup.js
+    └── shared/i18n.js
 ```
 
-## Validation
+## ✅ Validation
 
 Run these checks after changing logic, popup markup, locale files, or README files:
 
@@ -176,7 +182,7 @@ node --check src/popup/popup.js
 node scripts/validate-locales.mjs
 ```
 
-## Limitations
+## ⚠️ Limitations
 
 | Item | Description |
 | :--- | :---------- |
@@ -186,7 +192,7 @@ node scripts/validate-locales.mjs
 | API key security | Stored locally on the device, not designed for public-release security |
 | Retry refinement | Optional retry-based quality refinement is not implemented |
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Category | Technology |
 | :------- | :--------- |
@@ -197,13 +203,13 @@ node scripts/validate-locales.mjs
 | Storage | `chrome.storage.local` |
 | Translation | Gemini API (`gemini-3.1-flash-lite-preview`) |
 
-## References
+## 📚 References
 
 | Resource | Link |
 | :------- | :--- |
 | Gemini 3.1 Flash-Lite Preview | [Official docs](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview?hl=en) |
 | Chrome Extensions Manifest V3 | [Migration guide](https://developer.chrome.com/docs/extensions/develop/migrate) |
 
-## License
+## 📄 License
 
 This project is licensed under the [MIT License](./LICENSE).
