@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Context Translator</title>
+    <link rel="stylesheet" href="src/popup/popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="language-card">
+        <label class="field">
+          <span class="sr-only">원문 언어</span>
+          <select id="sourceLanguage" aria-label="원문 언어"></select>
+        </label>
+
+        <button
+          id="swapLanguages"
+          class="swap-button"
+          type="button"
+          aria-label="원문 언어와 번역 언어 바꾸기"
+        >
+          ⇄
+        </button>
+
+        <label class="field">
+          <span class="sr-only">번역 언어</span>
+          <select id="targetLanguage" aria-label="번역 언어"></select>
+        </label>
+      </section>
+
+      <section class="options">
+        <label class="checkbox-row">
+          <input id="alwaysTranslateLanguage" type="checkbox">
+          <span id="alwaysTranslateLanguageLabel">원문 언어 항상 번역하기</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="alwaysTranslateSite" type="checkbox">
+          <span>이 사이트 항상 번역하기</span>
+        </label>
+        <p id="siteHint" class="hint"></p>
+
+        <label class="checkbox-row">
+          <input id="showOriginalOnHover" type="checkbox">
+          <span>원문 함께 보기</span>
+        </label>
+      </section>
+
+      <section class="api-section">
+        <label class="section-label" for="apiKey">Gemini API 키</label>
+        <input
+          id="apiKey"
+          class="api-input"
+          type="password"
+          placeholder="AIza..."
+          autocomplete="off"
+          spellcheck="false"
+        >
+
+        <div class="api-actions">
+          <button id="saveApiKey" class="secondary-button" type="button">저장</button>
+          <button id="clearApiKey" class="ghost-button" type="button">초기화</button>
+        </div>
+
+        <div class="api-server-status">
+          <div class="api-server-status__summary">
+            <span class="api-server-status__label">API 서버 상태</span>
+            <span
+              id="apiServerStatus"
+              class="api-server-status__value"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >API 키가 없어요.</span>
+          </div>
+          <button id="checkApiStatus" class="ghost-button api-server-status__button" type="button">
+            확인
+          </button>
+        </div>
+      </section>
+
+      <p id="statusMessage" class="status" role="status" aria-live="polite"></p>
+
+      <button id="translateButton" class="translate-button" type="button">번역</button>
+    </main>
+
+    <script type="module" src="src/popup/popup.js"></script>
+  </body>
+</html>

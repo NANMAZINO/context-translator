@@ -1,0 +1,17 @@
+.context-translator__translated-text {
+  color: inherit !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  cursor: inherit !important;
+  text-decoration: inherit !important;
+}
+
+.context-translator__translated-text[title] {
+  cursor: inherit !important;
+}
+
+.context-translator__translated-text:focus {
+  outline: none !important;
+}

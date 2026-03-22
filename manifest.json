@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Context Translator",
+  "description": "Gemini 3.1 Flash-Lite Preview로 현재 페이지를 간결하게 번역하는 크롬 확장 프로그램",
+  "version": "0.1.0",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "Context Translator",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
