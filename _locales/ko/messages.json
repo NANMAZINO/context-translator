@@ -182,10 +182,10 @@
     "message": "현재 탭을 찾을 수 없습니다."
   },
   "translationQueued": {
-    "message": "번역이 대기열에 들어갔습니다..."
+    "message": "번역 준비 중..."
   },
   "translationBatchInProgress": {
-    "message": "번역 중... $COUNT$번째 배치를 처리하고 있습니다.",
+    "message": "번역 중 · $COUNT$번째 배치",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -194,7 +194,7 @@
     }
   },
   "translationContinuing": {
-    "message": "번역 중... $COUNT$개 배치를 완료했고 다음 배치를 처리하고 있습니다.",
+    "message": "번역 중 · $COUNT$번째 배치 완료, 다음 배치 준비",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -203,10 +203,10 @@
     }
   },
   "translationCompleted": {
-    "message": "번역이 완료되었습니다."
+    "message": "번역 완료"
   },
   "translationCompletedMultiBatch": {
-    "message": "번역이 완료되었습니다. 총 $COUNT$개 배치를 순서대로 처리했습니다.",
+    "message": "번역 완료 · 총 $COUNT$개 배치",
     "placeholders": {
       "count": {
         "content": "$1",

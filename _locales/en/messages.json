@@ -182,10 +182,10 @@
     "message": "Couldn't find the current tab."
   },
   "translationQueued": {
-    "message": "Translation is queued..."
+    "message": "Preparing translation..."
   },
   "translationBatchInProgress": {
-    "message": "Translating... Processing batch $COUNT$.",
+    "message": "Translating - Batch $COUNT$",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -194,7 +194,7 @@
     }
   },
   "translationContinuing": {
-    "message": "Translating... Finished $COUNT$ batches and continuing with the next one.",
+    "message": "Translating - Batch $COUNT$ done, preparing next batch",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -203,10 +203,10 @@
     }
   },
   "translationCompleted": {
-    "message": "Translation complete."
+    "message": "Translation complete"
   },
   "translationCompletedMultiBatch": {
-    "message": "Translation complete. Processed $COUNT$ batches in order.",
+    "message": "Translation complete - $COUNT$ batches",
     "placeholders": {
       "count": {
         "content": "$1",

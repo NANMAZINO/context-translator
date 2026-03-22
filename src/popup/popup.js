@@ -369,7 +369,10 @@ function updateSwapButtonState() {
   elements.swapLanguages.disabled = elements.sourceLanguage.value === "auto";
 }
 
-function refreshTranslateButtonState() {
+function refreshTranslateButtonState(options = {}) {
+  const {
+    preserveStatus = false
+  } = options;
   const sourceLanguage = elements.sourceLanguage.value;
   const targetLanguage = elements.targetLanguage.value;
   const hasApiKey = Boolean(elements.apiKey.value.trim());
@@ -379,6 +382,10 @@ function refreshTranslateButtonState() {
     !hasApiKey ||
     sourceLanguage === targetLanguage ||
     state.translationRunning;
+
+  if (preserveStatus) {
+    return;
+  }
 
   if (!state.isSupportedPage) {
     setStatus(t("unsupportedPage"), "error");
@@ -611,28 +618,28 @@ function updateTranslationProgressStatus(message) {
   if (stage === "queued") {
     state.translationRunning = true;
     setStatus(t("translationQueued"), "normal");
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: true });
     return;
   }
 
   if (stage === "translating") {
     state.translationRunning = true;
     setStatus(t("translationBatchInProgress", [String(message.batchCount)]), "normal");
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: true });
     return;
   }
 
   if (stage === "continuing") {
     state.translationRunning = true;
     setStatus(t("translationContinuing", [String(message.batchCount)]), "normal");
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: true });
     return;
   }
 
   if (stage === "failed" || stage === "error") {
     state.translationRunning = false;
     setStatus(getFailedTranslationMessage(message), "error");
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: true });
     return;
   }
 
@@ -640,12 +647,12 @@ function updateTranslationProgressStatus(message) {
     state.translationRunning = false;
     if ((message.batchCount ?? 1) > 1) {
       setStatus(t("translationCompletedMultiBatch", [String(message.batchCount)]), "success");
-      refreshTranslateButtonState();
+      refreshTranslateButtonState({ preserveStatus: true });
       return;
     }
 
     setStatus(t("translationCompleted"), "success");
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: true });
   }
 }
 
@@ -720,7 +727,7 @@ async function handleTranslate() {
     state.translationRunning = false;
     setStatus(error.message || t("translationCouldNotComplete"), "error");
   } finally {
-    refreshTranslateButtonState();
+    refreshTranslateButtonState({ preserveStatus: state.translationRunning });
   }
 }
 
